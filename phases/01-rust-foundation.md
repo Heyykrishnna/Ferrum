@@ -24,8 +24,10 @@ cargo check --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo build --workspace --release --locked
-python3 -I tests/phase1/process-smoke.py
+python3 -I tests/phase1/process-smoke.py --api-only
 ```
+
+The current workspace builds the API. The worker remains in the repository and was part of the original Phase 1 verification.
 
 ## Runtime behavior
 

@@ -105,7 +105,9 @@ def check_rejected(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bin-dir", type=Path, default=Path("target/release"))
-    binaries = parser.parse_args().bin_dir.resolve()
+    parser.add_argument("--api-only", action="store_true")
+    args = parser.parse_args()
+    binaries = args.bin_dir.resolve()
     api, worker = (binaries / name for name in ("ferrum-api", "ferrum-worker"))
 
     with tempfile.TemporaryDirectory(prefix="ferrum-phase1-") as temporary:
@@ -135,24 +137,26 @@ def main() -> None:
                 "development",
                 termination_signal,
             )
+            if not args.api_only:
+                check_lifecycle(
+                    worker,
+                    log,
+                    {"FERRUM_WORKER_CONFIG": str(worker_settings)},
+                    "worker_started",
+                    "worker_stopped",
+                    "production",
+                    termination_signal,
+                )
+        if not args.api_only:
             check_lifecycle(
                 worker,
                 log,
-                {"FERRUM_WORKER_CONFIG": str(worker_settings)},
+                {},
                 "worker_started",
                 "worker_stopped",
-                "production",
-                termination_signal,
+                "development",
+                signal.SIGTERM,
             )
-        check_lifecycle(
-            worker,
-            log,
-            {},
-            "worker_started",
-            "worker_stopped",
-            "development",
-            signal.SIGTERM,
-        )
 
         sensitive = "redaction-fixture-value"
         check_rejected(
@@ -164,26 +168,29 @@ def main() -> None:
             "nonzero port in production",
             "127.0.0.1:0",
         )
-        check_rejected(worker, {"FERRUM_MODE": sensitive}, "process.mode", sensitive)
-        check_rejected(
-            worker,
-            {"FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS": sensitive},
-            "FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS",
-            sensitive,
-        )
-        worker_settings.write_text(f'[process]\nunknown = "{sensitive}"\n')
-        check_rejected(
-            worker,
-            {"FERRUM_WORKER_CONFIG": str(worker_settings)},
-            "unknown setting",
-            sensitive,
-        )
-        check_rejected(
-            worker,
-            {"FERRUM_WORKER_CONFIG": str(root / sensitive)},
-            "could not read the settings file",
-            sensitive,
-        )
+        if not args.api_only:
+            check_rejected(
+                worker, {"FERRUM_MODE": sensitive}, "process.mode", sensitive
+            )
+            check_rejected(
+                worker,
+                {"FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS": sensitive},
+                "FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS",
+                sensitive,
+            )
+            worker_settings.write_text(f'[process]\nunknown = "{sensitive}"\n')
+            check_rejected(
+                worker,
+                {"FERRUM_WORKER_CONFIG": str(worker_settings)},
+                "unknown setting",
+                sensitive,
+            )
+            check_rejected(
+                worker,
+                {"FERRUM_WORKER_CONFIG": str(root / sensitive)},
+                "could not read the settings file",
+                sensitive,
+            )
     print("Phase 1 process checks passed")
 
 
