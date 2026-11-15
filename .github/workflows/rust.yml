@@ -1,0 +1,29 @@
+name: Rust
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Check compilation
+        run: cargo check --workspace --locked
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Run Rust tests
+        run: cargo test --workspace --locked
+      - name: Build release binaries
+        run: cargo build --workspace --release --locked
+      - name: Verify HTTP health, configuration and shutdown
+        run: python3 -I tests/phase1/process-smoke.py
