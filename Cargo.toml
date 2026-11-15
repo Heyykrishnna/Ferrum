@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "apps/api",
+    "crates/application",
     "crates/config",
     "crates/domain",
     "crates/runtime",
@@ -15,6 +16,7 @@ publish = false
 
 [workspace.dependencies]
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+ferrum-application = { path = "crates/application" }
 ferrum-config = { path = "crates/config" }
 ferrum-domain = { path = "crates/domain" }
 ferrum-runtime = { path = "crates/runtime" }

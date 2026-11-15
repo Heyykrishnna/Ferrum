@@ -105,6 +105,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrum-application"
+version = "0.1.0"
+dependencies = [
+ "ferrum-domain",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "ferrum-config"
 version = "0.1.0"
 dependencies = [
