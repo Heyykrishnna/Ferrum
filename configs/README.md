@@ -20,6 +20,25 @@ log_level = "info"
 shutdown_timeout_ms = 5000
 ```
 
-A worker file such as `configs/workers.toml` uses the same `[process]` table. Start it with `FERRUM_WORKER_CONFIG=configs/workers.toml cargo run --locked -p ferrum-worker`.
+A worker file such as `configs/workers.toml` uses the same `[process]` table when the worker is built.
 
-The [.env.example](../.env.example) file lists the local Docker Compose database settings. Phase 2 adds database settings. Phase 3 adds sandbox policy and a trusted Python profile. Phase 5 expands the language registry. Inject credentials into the processes that need them and keep them out of checked-in files, logs, and sandbox environments.
+The [.env.example](../.env.example) file lists the local Docker Compose database settings. Phase 3 adds sandbox policy and a trusted Python profile. Phase 5 expands the language registry. Inject credentials into the processes that need them and keep them out of checked-in files, logs, and sandbox environments.
+
+## PostgreSQL submission intake
+
+Set all three environment variables to enable submission routes.
+
+| Environment variable | Value |
+|---|---|
+| `FERRUM_DATABASE_URL` | PostgreSQL connection URL. Use `sslmode=verify-full` for a database reached over an untrusted network. |
+| `FERRUM_DEV_TENANT_ID` | Non-nil UUID for the tenant this API instance serves. |
+| `FERRUM_DEV_TOKEN` | 64 hexadecimal characters generated with `openssl rand -hex 32`. |
+
+Keep connection secrets and tokens in the environment. Pool options can also come from the selected API TOML file.
+
+| TOML key | Environment override | Default and accepted values |
+|---|---|---|
+| `database.max_connections` | `FERRUM_DB_MAX_CONNECTIONS` | 10 connections, 1–100 accepted. |
+| `database.acquire_timeout_ms` | `FERRUM_DB_ACQUIRE_TIMEOUT_MS` | 5,000 milliseconds, 1–30,000 accepted. |
+
+[Private submission API](../docs/submission-api.md)

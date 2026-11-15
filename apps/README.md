@@ -1,6 +1,6 @@
 # Applications
 
-Phase 1 introduced `ferrum-api` and `ferrum-worker`. Both load validated configuration, write JSON logs to stderr, and shut down on SIGINT or SIGTERM. The worker waits for cancellation until Phase 4 connects the queue. See [local startup](../README.md) and [Phase 1](../phases/01-rust-foundation.md).
+Phase 1 introduced `ferrum-api` and `ferrum-worker`. Both load validated configuration, write JSON logs to stderr, and shut down on SIGINT or SIGTERM. The current workspace builds the API. Worker source remains in `apps/worker` for later integration. See [local startup](../README.md) and [Phase 1](../phases/01-rust-foundation.md).
 
 | Target | Owns |
 |---|---|
