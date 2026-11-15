@@ -2,6 +2,7 @@
 members = [
     "apps/api",
     "crates/config",
+    "crates/domain",
     "crates/runtime",
 ]
 exclude = ["tests/phase0/dependency-probe"]
@@ -15,6 +16,7 @@ publish = false
 [workspace.dependencies]
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 ferrum-config = { path = "crates/config" }
+ferrum-domain = { path = "crates/domain" }
 ferrum-runtime = { path = "crates/runtime" }
 serde = { version = "=1.0.229", features = ["derive"] }
 thiserror = "=2.0.21"
