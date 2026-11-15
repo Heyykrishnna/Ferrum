@@ -120,16 +120,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferrum-worker"
-version = "0.1.0"
-dependencies = [
- "ferrum-config",
- "ferrum-runtime",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "futures-core"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
