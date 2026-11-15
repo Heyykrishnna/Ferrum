@@ -11,7 +11,7 @@ pub struct RequestedLimits {
     pub memory_kib: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EffectiveLimits {
     pub cpu_time_ms: u32,
     pub wall_time_ms: u32,
@@ -34,6 +34,8 @@ pub struct SubmissionInput {
 
 #[derive(Debug, Error)]
 pub enum ValidationError {
+    #[error("unsupported resolved runtime profile")]
+    Profile,
     #[error("language must be python")]
     Language,
     #[error("source must contain 1 to 65536 UTF-8 bytes and no NUL characters")]
@@ -93,6 +95,31 @@ impl SubmissionInput {
         })
     }
 
+    pub fn from_persisted(
+        profile: &str,
+        source: String,
+        stdin: String,
+        limits: EffectiveLimits,
+    ) -> Result<Self, ValidationError> {
+        if profile != Self::PROFILE {
+            return Err(ValidationError::Profile);
+        }
+        let input = Self::new(
+            Self::LANGUAGE,
+            source,
+            Some(stdin),
+            RequestedLimits {
+                cpu_time_ms: Some(limits.cpu_time_ms),
+                wall_time_ms: Some(limits.wall_time_ms),
+                memory_kib: Some(limits.memory_kib),
+            },
+        )?;
+        if input.limits != limits {
+            return Err(ValidationError::Limits);
+        }
+        Ok(input)
+    }
+
     pub fn source(&self) -> &str {
         &self.source
     }
@@ -103,5 +130,50 @@ impl SubmissionInput {
 
     pub fn limits(&self) -> &EffectiveLimits {
         &self.limits
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn persisted_profile_and_policy_are_revalidated() {
+        let input = SubmissionInput::new(
+            "python",
+            "print('hello')".into(),
+            None,
+            RequestedLimits::default(),
+        )
+        .unwrap();
+        let mut persisted = input.limits().clone();
+        assert!(
+            SubmissionInput::from_persisted(
+                "python3.13-v1",
+                input.source().into(),
+                "".into(),
+                persisted.clone()
+            )
+            .is_ok()
+        );
+        persisted.processes = 2;
+        assert!(
+            SubmissionInput::from_persisted(
+                "python3.13-v1",
+                input.source().into(),
+                "".into(),
+                persisted
+            )
+            .is_err()
+        );
+        assert!(
+            SubmissionInput::from_persisted(
+                "other-profile",
+                input.source().into(),
+                "".into(),
+                input.limits().clone()
+            )
+            .is_err()
+        );
     }
 }
