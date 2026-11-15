@@ -24,7 +24,7 @@ These are starting ceilings for a single invocation. Phase 2 persists the resolv
 | Memory and stack | 128 MiB total in the cgroup; 8 MiB per-process stack |
 | Processes or threads; open descriptors | One process or thread; 64 open descriptors |
 | Files and workspace | 64 KiB per file; 4 MiB aggregate quota and 128 inodes, including staged files and captures |
-| stdout and stderr | 64 KiB per stream, independently. Keep both the sandbox-side bound and the trusted reader's byte cap. |
+| stdout and stderr | 64 KiB per stream, independently. Phase 0 measures the regular-file limit. The Rust adapter bounds the output it captures from each kernel pipe and stops on overflow. |
 
 The verifier uses lower time limits to distinguish CPU from wall-clock enforcement and permits two processes for the teardown fixture. These exceptions are confined to the verification cases. Phase 3 owns trustworthy output collection, result classification and cleanup reconciliation. Phase 9 owns measured host concurrency and admission sizing.
 
