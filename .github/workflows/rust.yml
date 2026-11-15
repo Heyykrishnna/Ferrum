@@ -27,3 +27,5 @@ jobs:
         run: cargo build --workspace --release --locked
       - name: Verify API health, configuration and shutdown
         run: python3 -I tests/phase1/process-smoke.py --api-only
+      - name: Verify submissions with disposable PostgreSQL
+        run: python3 -I tests/phase2/submission-smoke.py
