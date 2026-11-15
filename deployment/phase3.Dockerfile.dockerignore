@@ -1,0 +1,14 @@
+**
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!apps/
+!apps/api/
+!apps/api/**
+!crates/
+!crates/**
+!migrations/
+!migrations/*.sql
+**/target/
+**/.env*
+**/.DS_Store
