@@ -5,6 +5,7 @@ These are target Cargo members. Add a member when a phase introduces behavior th
 | Module | Owns | Introduced |
 |---|---|---|
 | `config` | Typed settings and startup validation | Phase 1 |
+| `runtime` | Structured process logging, signal handling and bounded shutdown | Phase 1 |
 | `domain` | Submission and attempt rules, states and verdicts | Phase 2 |
 | `application` | Workflows and interfaces for external effects | Phase 2 |
 | `contracts` | Public DTOs and versioned job payloads | Phase 2 |

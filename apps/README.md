@@ -1,6 +1,6 @@
 # Applications
 
-Create the two Rust binaries in [Phase 1](../phases/01-rust-foundation.md). Each owns startup, typed configuration, dependency wiring, telemetry and shutdown.
+Phase 1 introduced `ferrum-api` and `ferrum-worker`. Both load validated configuration, write JSON logs to stderr, and shut down on SIGINT or SIGTERM. The worker waits for cancellation until Phase 4 connects the queue. See [local startup](../README.md) and [Phase 1](../phases/01-rust-foundation.md).
 
 | Target | Owns |
 |---|---|
