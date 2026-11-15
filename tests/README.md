@@ -1,5 +1,7 @@
 # Test strategy
 
+[Phase 0](../phases/00-architecture-and-environment.md) contains the standalone Rust dependency probe and [Linux worker qualification instructions](../docs/phase0-linux-worker.md).
+
 | Planned path | Environment and evidence |
 |---|---|
 | In-crate tests | State transitions, idempotency policy, limits and verdict rules |

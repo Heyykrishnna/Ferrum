@@ -15,6 +15,6 @@ This folder contains the project structure, phase plans, architecture and local 
 | [deployment/](deployment/README.md) | Local setup and production topology |
 | [tests/](tests/README.md) | Test environments and evidence requirements |
 
-Start with [Phase 0](phases/00-architecture-and-environment.md). The first milestone is [Phase 4](phases/04-apalis-worker-pipeline.md): submit a Python program through Axum, schedule it through PostgreSQL and Apalis, run it inside Isolate on Linux and retrieve the saved result. C++ follows as the first compiled language.
+Start with [Phase 0](phases/00-architecture-and-environment.md) and its [Linux worker verification runbook](docs/phase0-linux-worker.md). The first milestone is [Phase 4](phases/04-apalis-worker-pipeline.md): submit a Python program through Axum, schedule it through PostgreSQL and Apalis, run it inside Isolate on Linux and retrieve the saved result. C++ follows as the first compiled language.
 
 To prepare PostgreSQL, follow the [local database instructions](deployment/README.md). See the [technology decisions](docs/technology.md) for what each service does and when it is needed.

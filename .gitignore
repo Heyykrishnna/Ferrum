@@ -2,4 +2,5 @@
 .env.*
 !.env.example
 /target/
+/tests/phase0/dependency-probe/target/
 .DS_Store

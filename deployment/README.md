@@ -21,4 +21,4 @@ The named data volume survives `docker compose down`. PostgreSQL uses initializa
 
 ## Worker and production environments
 
-Use a supported, disposable Linux host for [Isolate validation](../phases/00-architecture-and-environment.md). This Compose file supplies PostgreSQL only. Production runs separate API and worker processes, with dedicated Linux worker hosts, private PostgreSQL and telemetry, TLS and injected secrets. Select the hosting and secrets providers during [Phase 10](../phases/10-production-release.md).
+Use a supported, disposable Linux host for [Isolate validation](../docs/phase0-linux-worker.md#run-on-a-fresh-vm). This Compose file supplies PostgreSQL only. Production runs separate API and worker processes, with dedicated Linux worker hosts, private PostgreSQL and telemetry, TLS and injected secrets. Select the hosting and secrets providers during [Phase 10](../phases/10-production-release.md).
