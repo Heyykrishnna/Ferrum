@@ -1,0 +1,18 @@
+[package]
+name = "ferrum-api"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+ferrum-config.workspace = true
+ferrum-runtime.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
