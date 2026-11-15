@@ -398,3 +398,51 @@ pub(super) fn read_bounded(path: impl AsRef<Path>, limit: usize) -> io::Result<V
     }
     Ok(bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires the dedicated Debian 13 amd64 Isolate 2.7 host"]
+    fn retains_and_reconciles_a_failed_cleanup() {
+        let mut host = Host::open().expect("qualified Isolate host");
+        host.begin().unwrap();
+        let real_group = host.group.clone();
+        host.group.push("unavailable-control");
+        assert!(matches!(
+            host.initialize("--quota=4096,128".into()),
+            Err(ProcessError::Io)
+        ));
+        host.group = real_group;
+        assert!(!host.is_clear().unwrap());
+        host.cleanup().unwrap();
+        assert!(host.is_clear().unwrap());
+        println!("PASS cleanup after initialization verification failed");
+
+        host.begin().unwrap();
+        host.initialize("--quota=4096,128".into()).unwrap();
+
+        assert!(matches!(
+            host.reconcile(),
+            Err(HostError::Recovery(CleanupError::Supervisor))
+        ));
+        let lock = File::open(LOCK).unwrap();
+        lock.try_lock().unwrap();
+        assert_eq!(host.cleanup(), Err(CleanupError::Helper));
+        assert_eq!(
+            fs::read_to_string(host.state.join(JOURNAL)).unwrap(),
+            host.journal_record()
+        );
+        assert!(host.state.join(RETRY).is_file());
+        assert!(!host.is_clear().unwrap());
+        drop(lock);
+        drop(host);
+
+        let recovered = Host::open().expect("reconcile the pending Ferrum box");
+        assert!(recovered.is_clear().unwrap());
+        assert!(!recovered.state.join(JOURNAL).exists());
+        assert!(!recovered.state.join(RETRY).exists());
+        println!("PASS failed cleanup retained a recovery record and restart reconciled it");
+    }
+}
