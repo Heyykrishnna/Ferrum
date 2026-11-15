@@ -1,9 +1,14 @@
+mod database;
+
+pub use database::{DatabaseSettings, DevelopmentCaller};
+
 use std::{
     env, fs, io,
     net::{Ipv4Addr, SocketAddr},
     time::Duration,
 };
 
+use database::DatabaseFile;
 use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 
@@ -41,10 +46,15 @@ pub struct ProcessSettings {
     pub shutdown_timeout: Duration,
 }
 
-#[derive(Debug)]
 pub struct ApiSettings {
     pub listen_addr: SocketAddr,
     pub process: ProcessSettings,
+    pub submissions: Option<SubmissionSettings>,
+}
+
+pub struct SubmissionSettings {
+    pub database: DatabaseSettings,
+    pub caller: DevelopmentCaller,
 }
 
 #[derive(Debug)]
@@ -75,6 +85,7 @@ pub enum ConfigError {
 struct ApiFile {
     listen_addr: Option<String>,
     process: ProcessFile,
+    database: DatabaseFile,
 }
 
 #[derive(Default, Deserialize)]
@@ -110,9 +121,33 @@ impl ApiSettings {
             });
         }
 
+        let submissions = match (
+            DatabaseSettings::from_file(file.database)?,
+            DevelopmentCaller::load()?,
+        ) {
+            (None, None) => None,
+            (Some(database), Some(caller))
+                if process.mode == Mode::Development && listen_addr.ip().is_loopback() =>
+            {
+                Some(SubmissionSettings { database, caller })
+            }
+            (Some(_), Some(_)) => {
+                return Err(ConfigError::InvalidSetting {
+                    setting: "submission intake",
+                    expected: "use development mode and a loopback HTTP listener",
+                });
+            }
+            _ => {
+                return Err(ConfigError::InvalidSetting {
+                    setting: "submission intake",
+                    expected: "set FERRUM_DATABASE_URL, FERRUM_DEV_TENANT_ID and FERRUM_DEV_TOKEN together",
+                });
+            }
+        };
         Ok(Self {
             listen_addr,
             process,
+            submissions,
         })
     }
 }
