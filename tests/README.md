@@ -11,4 +11,6 @@
 | `concurrency/` | Duplicate consumers and interrupted leases: admission, recovery and cleanup under contention |
 | `languages/` | Smoke, stdin/stdout, runtime failure and limit cases per runtime; compile failure where applicable |
 
-Wire cross-service suites into explicit Cargo test targets when introduced. Once the workspace exists, run `cargo fmt --all --check`, `cargo check --workspace --locked`, `cargo clippy --workspace --all-targets --locked -- -D warnings` and `cargo test --workspace --locked`. Record Linux host, kernel, toolchain and Isolate versions alongside sandbox results.
+Phase 1 checks the readiness transition and shutdown deadline in Rust tests. The [process smoke test](phase1/process-smoke.py) starts both release binaries and checks actual HTTP responses, configuration failures, and SIGINT and SIGTERM handling. Run the [workspace verification commands](../phases/01-rust-foundation.md#verification).
+
+Wire later cross-service suites into explicit Cargo test targets. Record Linux host, kernel, toolchain and Isolate versions alongside sandbox results.
