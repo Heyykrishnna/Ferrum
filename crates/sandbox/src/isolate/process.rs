@@ -227,3 +227,79 @@ impl<R: Read + AsFd> Stream<R> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::process::ExitStatusExt;
+
+    use super::*;
+
+    #[test]
+    fn capture_preserves_exact_cap_and_reports_overflow() {
+        let token = CancellationToken::new();
+        let mut exact = command("/usr/bin/printf");
+        exact.arg("1234");
+        let captured = capture(&mut exact, Duration::from_secs(1), 4, 4, &token).unwrap();
+        assert!(captured.status.success());
+        assert!(captured.stop.is_none());
+        assert_eq!(captured.stdout, b"1234");
+
+        let mut overflow = command("/usr/bin/printf");
+        overflow.arg("12345");
+        let captured = capture(&mut overflow, Duration::from_secs(1), 4, 4, &token).unwrap();
+        assert!(matches!(
+            captured.stop,
+            Some(Stop::Output(OutputStream::Stdout))
+        ));
+        assert_eq!(captured.stdout, b"1234");
+    }
+
+    #[test]
+    fn capture_reaps_cancelled_process() {
+        let token = CancellationToken::new();
+        token.cancel();
+        let mut child = command("/usr/bin/sleep");
+        child.arg("10");
+        let captured = capture(&mut child, Duration::from_secs(5), 8, 8, &token).unwrap();
+        assert!(matches!(captured.stop, Some(Stop::Cancelled)));
+    }
+
+    #[test]
+    fn overflow_stops_and_reaps_a_live_writer() {
+        let mut writer = command("/usr/bin/yes");
+        writer.arg("fixture");
+        let captured = capture(
+            &mut writer,
+            Duration::from_secs(5),
+            4096,
+            4096,
+            &CancellationToken::new(),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            captured.stop,
+            Some(Stop::Output(OutputStream::Stdout))
+        ));
+        assert_eq!(captured.stdout.len(), 4096);
+        assert_eq!(captured.status.signal(), Some(Signal::TERM.as_raw()));
+        assert!(captured.stderr.is_empty());
+    }
+
+    #[test]
+    fn deadline_kills_and_reaps_a_child_that_ignores_termination() {
+        let mut child = command("/usr/bin/env");
+        child.args(["--ignore-signal=TERM", "/usr/bin/sleep", "10"]);
+        let captured = capture(
+            &mut child,
+            Duration::from_secs(1),
+            8,
+            8,
+            &CancellationToken::new(),
+        )
+        .unwrap();
+
+        assert!(matches!(captured.stop, Some(Stop::Deadline)));
+        assert_eq!(captured.status.signal(), Some(Signal::KILL.as_raw()));
+    }
+}
