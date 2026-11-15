@@ -124,6 +124,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrum-contracts"
+version = "0.1.0"
+dependencies = [
+ "uuid",
+]
+
+[[package]]
 name = "ferrum-domain"
 version = "0.1.0"
 dependencies = [

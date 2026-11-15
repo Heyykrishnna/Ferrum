@@ -3,6 +3,7 @@ members = [
     "apps/api",
     "crates/application",
     "crates/config",
+    "crates/contracts",
     "crates/domain",
     "crates/runtime",
 ]
@@ -18,6 +19,7 @@ publish = false
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 ferrum-application = { path = "crates/application" }
 ferrum-config = { path = "crates/config" }
+ferrum-contracts = { path = "crates/contracts" }
 ferrum-domain = { path = "crates/domain" }
 ferrum-runtime = { path = "crates/runtime" }
 serde = { version = "=1.0.229", features = ["derive"] }
