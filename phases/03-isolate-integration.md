@@ -17,13 +17,14 @@ Run one pinned Python program in a fresh Isolate sandbox per attempt and return 
 
 Run the workspace checks and the real-host suites before closing this phase. The real-host suites exercise the fixed Python profile, output capture, CPU/wall/memory limits, file and process limits, isolated networking, cancellation and cleanup recovery. Record the target host and Rust toolchain with both transcripts. [Host setup and verification](../docs/phase3-isolate.md#qualify-the-adapter)
 
-Rust 1.100.0 on macOS arm64 passed workspace formatting, check, Clippy, unit tests and the locked release build. The existing API and PostgreSQL smoke tests passed. The Debian amd64 Docker image passed formatting, Clippy and eight tests. The real Isolate adapter test was also invoked explicitly in the container and stopped at `HostError::Platform`, before any sandbox was created. Both configured Docker contexts use the `7.0.14-linuxkit` kernel. The container mounts cgroup v2 read-only, so Isolate cannot configure the required per-box controls there. [Docker verification commands](../docs/phase3-isolate.md#run-the-linux-checks-in-docker)
+Rust 1.100.0 on macOS arm64 passed workspace formatting, check, Clippy, unit tests and the locked release build. The existing API and PostgreSQL smoke tests passed. The Debian amd64 Docker image passed formatting, Clippy and nine tests. The real Isolate adapter test was also invoked explicitly in the container and stopped at `HostError::Platform`, before any sandbox was created. Both configured Docker contexts use the `7.0.14-linuxkit` kernel. The container mounts cgroup v2 read-only, so Isolate cannot configure the required per-box controls there. [Docker verification commands](../docs/phase3-isolate.md#run-the-linux-checks-in-docker)
 
 ## Acceptance checks
 
 - [x] The adapter refuses an unqualified Docker host before starting a sandbox.
 - [x] The Linux supervisor caps live process output and reaps the child after overflow or cancellation. The deadline test also verifies that it reaps a child that ignores SIGTERM.
 - [x] The adapter interface exposes typed program outcomes and infrastructure errors, with cleanup status reported independently. Metadata tests distinguish program failures from adapter faults.
+- [x] An interrupted recovery-record write cannot replace an existing attempt record or authorize cleanup.
 
 These checks still require actual runs on the qualified Linux host:
 

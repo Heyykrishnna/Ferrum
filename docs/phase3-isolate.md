@@ -15,7 +15,7 @@ The image runs Rust formatting, Clippy, and the portable domain and Linux proces
 
 ## Qualify the adapter
 
-Follow the [Phase 0 setup](phase0-linux-worker.md#run-on-a-fresh-vm) on a dedicated Debian 13 amd64 host. Run the Phase 0 verifier from the Ferrum checkout as the ordinary Isolate group member. The target uses Isolate 2.7, cgroup v2, the dedicated quota-enabled tmpfs, swap disabled, and the stock Isolate syscall restrictions. The adapter also requires `fs.protected_hardlinks=1` and a direct kernel core pattern so `--core=0` applies. A core pattern starting with a pipe sends dumps to a host handler outside that limit.
+Follow the package and mount setup on a dedicated Debian 13 amd64 host, then use the combined verification command below. The target uses Isolate 2.7, cgroup v2, the dedicated quota-enabled tmpfs, swap disabled, and the stock Isolate syscall restrictions. The adapter also requires `fs.protected_hardlinks=1` and a direct kernel core pattern so `--core=0` applies. A core pattern starting with a pipe sends dumps to a host handler outside that limit. [Phase 0 host setup](phase0-linux-worker.md#run-on-a-fresh-vm)
 
 Create the private recovery directory once on the host. Use the ordinary Isolate worker account for the Rust tests.
 
@@ -49,6 +49,6 @@ The report contains a program outcome or a typed adapter error, plus an independ
 
 ## Recover box 0
 
-Ferrum writes and syncs `/var/lib/ferrum-sandbox/box-0.pending` before attempting Isolate initialization. It removes the record only after the sandbox workspace, cgroup and active Isolate lock are cleared. An unresolved cleanup blocks reuse in the current adapter. If a cleanup helper exits without clearing the box, Ferrum records that a later adapter may safely retry. On a later boot, the adapter can also recover a box associated with the previous boot because its helper processes have stopped. An occupied box without a Ferrum record needs operator review.
+Ferrum publishes and syncs `/var/lib/ferrum-sandbox/box-0.pending` before attempting Isolate initialization. Each record becomes visible only after its contents are complete, and publication cannot overwrite an existing record. Startup discards an interrupted temporary write. Ferrum removes the pending record only after the sandbox workspace, cgroup and active Isolate lock are cleared. An unresolved cleanup blocks reuse in the current adapter. If a cleanup helper exits without clearing the box, Ferrum records that a later adapter may safely retry. On a later boot, the adapter can also recover a box associated with the previous boot because its helper processes have stopped. An occupied box without a Ferrum record needs operator review.
 
 If startup reports that it cannot verify the previous supervisor on the current boot, keep the host out of admission and retain the record. Reboot the dedicated host, restore its qualified mount and cgroup setup, and start the adapter again. The restart reconciles the old record before it runs the startup probe.

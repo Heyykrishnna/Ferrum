@@ -20,6 +20,7 @@ const STATE: &str = "/var/lib/ferrum-sandbox";
 const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 const JOURNAL: &str = "box-0.pending";
 const RETRY: &str = "box-0.recoverable";
+const RECORD_TEMP: &str = "box-0.record.tmp";
 const METADATA: &str = "box-0.meta";
 const MARKER: &str = "ferrum-isolate-2.7-box-0:";
 const JOURNAL_LIMIT: usize = 128;
@@ -186,11 +187,15 @@ impl Host {
     }
 
     fn reconcile(&self) -> Result<(), HostError> {
+        self.remove_optional_record(RECORD_TEMP)
+            .map_err(HostError::Recovery)?;
         let pending = match read_bounded(self.state.join(JOURNAL), JOURNAL_LIMIT) {
             Ok(bytes) => bytes,
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 if self.is_clear().map_err(HostError::Recovery)? {
-                    return self.remove_retry().map_err(HostError::Recovery);
+                    return self
+                        .remove_optional_record(RETRY)
+                        .map_err(HostError::Recovery);
                 }
                 return Err(HostError::UnownedBox);
             }
@@ -224,26 +229,31 @@ impl Host {
         if !self.is_clear()? {
             return Err(CleanupError::Residual);
         }
-        self.remove_retry()?;
+        self.remove_optional_record(RETRY)?;
         self.write_record(JOURNAL, self.journal_record().as_bytes())
     }
 
     fn write_record(&self, name: &str, contents: &[u8]) -> Result<(), CleanupError> {
+        let temporary = self.state.join(RECORD_TEMP);
         let mut marker = OpenOptions::new()
             .write(true)
             .create_new(true)
             .mode(0o600)
-            .open(self.state.join(name))
+            .open(&temporary)
             .map_err(|_| CleanupError::Journal)?;
-        marker
+        let publish = marker
             .write_all(contents)
             .and_then(|()| marker.sync_all())
+            .and_then(|()| fs::hard_link(&temporary, self.state.join(name)));
+        let remove = fs::remove_file(temporary);
+        publish
+            .and(remove)
             .and_then(|()| File::open(&self.state)?.sync_all())
             .map_err(|_| CleanupError::Journal)
     }
 
-    fn remove_retry(&self) -> Result<(), CleanupError> {
-        match fs::remove_file(self.state.join(RETRY)) {
+    fn remove_optional_record(&self, name: &str) -> Result<(), CleanupError> {
+        match fs::remove_file(self.state.join(name)) {
             Ok(()) => File::open(&self.state)
                 .and_then(|state| state.sync_all())
                 .map_err(|_| CleanupError::Journal),
@@ -255,7 +265,7 @@ impl Host {
     pub(super) fn cleanup(&self) -> Result<(), CleanupError> {
         let record = read_bounded(self.state.join(JOURNAL), JOURNAL_LIMIT)
             .map_err(|_| CleanupError::Journal)?;
-        self.remove_retry()?;
+        self.remove_optional_record(RETRY)?;
         let mut cmd = command(ISOLATE);
         cmd.args(["--cg", "--box-id=0", "--cleanup"]);
         let captured = capture(
@@ -402,6 +412,45 @@ pub(super) fn read_bounded(path: impl AsRef<Path>, limit: usize) -> io::Result<V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interrupted_record_write_cannot_authorize_cleanup_or_replace_an_attempt() {
+        let state =
+            std::env::temp_dir().join(format!("ferrum-recovery-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&state).unwrap();
+        let host = Host {
+            group: state.join("unused-cgroup"),
+            _lock: File::create_new(state.join("box-0.owner")).unwrap(),
+            state,
+            boot_id: uuid::Uuid::new_v4().to_string(),
+        };
+        let record = host.journal_record();
+        host.write_record(JOURNAL, record.as_bytes()).unwrap();
+        assert_eq!(
+            host.write_record(JOURNAL, b"replacement"),
+            Err(CleanupError::Journal),
+        );
+        assert_eq!(
+            fs::read_to_string(host.state.join(JOURNAL)).unwrap(),
+            record
+        );
+        assert!(!host.state.join(RECORD_TEMP).exists());
+
+        fs::write(host.state.join(RECORD_TEMP), b"interrupted retry").unwrap();
+        assert!(matches!(
+            host.reconcile(),
+            Err(HostError::Recovery(CleanupError::Supervisor))
+        ));
+        assert!(!host.state.join(RETRY).exists());
+        assert!(!host.state.join(RECORD_TEMP).exists());
+        assert_eq!(
+            fs::read_to_string(host.state.join(JOURNAL)).unwrap(),
+            record
+        );
+        let state = host.state.clone();
+        drop(host);
+        fs::remove_dir_all(state).unwrap();
+    }
 
     #[test]
     #[ignore = "requires the dedicated Debian 13 amd64 Isolate 2.7 host"]
