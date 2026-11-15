@@ -1,7 +1,7 @@
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub mod isolate;
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(any(test, all(target_os = "linux", target_arch = "x86_64")))]
 mod metadata;
 
 use std::future::Future;

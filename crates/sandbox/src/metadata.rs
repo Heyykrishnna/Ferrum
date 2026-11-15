@@ -88,3 +88,52 @@ fn milliseconds(value: &str) -> Result<u64, SandboxError> {
         .and_then(|base| base.checked_add(number::<u64>(fraction).ok()?))
         .ok_or(SandboxError::Metadata)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_success_and_cgroup_memory() {
+        let metadata =
+            Metadata::parse(b"time:0.015\ntime-wall:1.004\ncg-mem:8192\nexitcode:0\n").unwrap();
+        assert_eq!(metadata.outcome(Some(0)), Ok(ProgramOutcome::Success));
+        assert_eq!(metadata.facts.cpu_time_ms, Some(15));
+        assert_eq!(metadata.facts.wall_time_ms, Some(1_004));
+        assert_eq!(metadata.facts.peak_memory_kib, Some(8192));
+    }
+
+    #[test]
+    fn separates_limits_program_errors_and_infrastructure_faults() {
+        let cases: &[(&[u8], _)] = &[
+            (
+                b"status:TO\nmessage:Time limit exceeded\n",
+                Ok(ProgramOutcome::CpuTimeLimit),
+            ),
+            (
+                b"status:TO\nmessage:Time limit exceeded (wall clock)\n",
+                Ok(ProgramOutcome::WallTimeLimit),
+            ),
+            (
+                b"status:SG\nexitsig:9\ncg-oom-killed:1\n",
+                Ok(ProgramOutcome::MemoryLimit),
+            ),
+            (
+                b"status:RE\nexitcode:17\n",
+                Ok(ProgramOutcome::RuntimeError),
+            ),
+            (b"status:XX\n", Err(SandboxError::Metadata)),
+        ];
+        for (status, expected) in cases {
+            let mut fixture = b"time:0.324\ntime-wall:1.008\n".to_vec();
+            fixture.extend_from_slice(status);
+            assert_eq!(
+                &Metadata::parse(&fixture).unwrap().outcome(Some(1)),
+                expected
+            );
+        }
+        assert!(Metadata::parse(b"exitcode:0\nexitcode:1\n").is_err());
+        assert!(Metadata::parse(b"time:18446744073709552.001\n").is_err());
+        assert!(Metadata::parse(b"time:0.01x\n").is_err());
+    }
+}
