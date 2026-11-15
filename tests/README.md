@@ -16,3 +16,5 @@ Phase 1 checks the readiness transition and shutdown deadline in Rust tests. The
 Wire later cross-service suites into explicit Cargo test targets. Record Linux host, kernel, toolchain and Isolate versions alongside sandbox results.
 
 Phase 2 starts a new PostgreSQL 17 Compose project with a random loopback port and temporary volume. The suite applies migrations, starts and restarts the API, and verifies concurrent replay, tenant scope, rollback, input bounds, and database readiness. Run the locked release build first. [Phase 2 verification](../phases/02-database-and-submissions.md#verification)
+
+Phase 3 adds portable metadata tests, Linux process supervision tests and an opt-in suite for the real Isolate host. Run the first two in Docker on a Mac. The dedicated Linux host suite checks the adapter, resource limits, cancellation and recovery from a failed cleanup. [Docker checks](../docs/phase3-isolate.md#run-the-linux-checks-in-docker) · [Isolate host verification](../docs/phase3-isolate.md#qualify-the-adapter)
