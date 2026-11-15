@@ -32,6 +32,6 @@ Finalize attempt facts, the submission outcome and the completion event together
 
 ## Contract decisions to close during implementation
 
-- Phase 2 records normalization for idempotency, the exact public response shape and the meaning of each initial processing state.
+- Phase 2 records idempotency normalization, the public response shape and the initial `created` state. [Private submission API](../docs/submission-api.md)
 - Phase 4 validates acknowledgment, dispatcher claim recovery and retry behavior against the selected Apalis release. It records the lease and fencing mechanism and the authority that releases quarantined capacity.
 - Phases 6 and 7 document verdict precedence, cancellation responses, and the stable event identifiers used for webhook deduplication.

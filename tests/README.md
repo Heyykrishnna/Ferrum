@@ -11,6 +11,8 @@
 | `concurrency/` | Duplicate consumers and interrupted leases: admission, recovery and cleanup under contention |
 | `languages/` | Smoke, stdin/stdout, runtime failure and limit cases per runtime; compile failure where applicable |
 
-Phase 1 checks the readiness transition and shutdown deadline in Rust tests. The [process smoke test](phase1/process-smoke.py) starts both release binaries and checks actual HTTP responses, configuration failures, and SIGINT and SIGTERM handling. Run the [workspace verification commands](../phases/01-rust-foundation.md#verification).
+Phase 1 checks the readiness transition and shutdown deadline in Rust tests. The process smoke test checks HTTP responses, configuration failures, and SIGINT and SIGTERM handling. The current workspace runs it with `--api-only`. [Workspace verification](../phases/01-rust-foundation.md#verification)
 
 Wire later cross-service suites into explicit Cargo test targets. Record Linux host, kernel, toolchain and Isolate versions alongside sandbox results.
+
+Phase 2 starts a new PostgreSQL 17 Compose project with a random loopback port and temporary volume. The suite applies migrations, starts and restarts the API, and verifies concurrent replay, tenant scope, rollback, input bounds, and database readiness. Run the locked release build first. [Phase 2 verification](../phases/02-database-and-submissions.md#verification)
