@@ -341,13 +341,18 @@ name = "ferrum-api"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "ferrum-application",
  "ferrum-config",
+ "ferrum-domain",
+ "ferrum-infrastructure",
  "ferrum-runtime",
  "serde",
+ "subtle",
  "tokio",
  "tokio-util",
  "tower",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

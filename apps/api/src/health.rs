@@ -4,6 +4,7 @@ use axum::{
     http::{StatusCode, header},
     routing::get,
 };
+use ferrum_infrastructure::PostgresSubmissions;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
@@ -18,22 +19,41 @@ type HealthResponse = (
     Json<Health>,
 );
 
-pub fn router(cancelled: CancellationToken) -> Router {
+#[derive(Clone)]
+struct HealthState {
+    cancelled: CancellationToken,
+    database: Option<PostgresSubmissions>,
+}
+
+pub fn router(cancelled: CancellationToken, database: Option<PostgresSubmissions>) -> Router {
     Router::new()
         .route("/health/live", get(live))
         .route("/health/ready", get(ready))
-        .with_state(cancelled)
+        .with_state(HealthState {
+            cancelled,
+            database,
+        })
 }
 
 async fn live() -> HealthResponse {
     response(StatusCode::OK, "live")
 }
 
-async fn ready(State(cancelled): State<CancellationToken>) -> HealthResponse {
-    if cancelled.is_cancelled() {
-        response(StatusCode::SERVICE_UNAVAILABLE, "draining")
-    } else {
+async fn ready(State(state): State<HealthState>) -> HealthResponse {
+    let ready = tokio::select! {
+        biased;
+        _ = state.cancelled.cancelled() => return response(StatusCode::SERVICE_UNAVAILABLE, "draining"),
+        ready = async {
+            match state.database {
+                Some(database) => database.is_ready().await,
+                None => true,
+            }
+        } => ready,
+    };
+    if ready {
         response(StatusCode::OK, "ready")
+    } else {
+        response(StatusCode::SERVICE_UNAVAILABLE, "database_unavailable")
     }
 }
 
@@ -55,7 +75,7 @@ mod tests {
     #[tokio::test]
     async fn draining_only_changes_readiness() {
         let cancelled = CancellationToken::new();
-        let app = router(cancelled.clone());
+        let app = router(cancelled.clone(), None);
         cancelled.cancel();
 
         for (path, status) in [

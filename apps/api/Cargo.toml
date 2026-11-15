@@ -7,12 +7,17 @@ publish.workspace = true
 
 [dependencies]
 axum.workspace = true
+ferrum-application.workspace = true
 ferrum-config.workspace = true
+ferrum-domain.workspace = true
+ferrum-infrastructure.workspace = true
 ferrum-runtime.workspace = true
 serde.workspace = true
+subtle.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
