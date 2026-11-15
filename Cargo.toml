@@ -5,6 +5,7 @@ members = [
     "crates/config",
     "crates/contracts",
     "crates/domain",
+    "crates/infrastructure",
     "crates/runtime",
 ]
 exclude = ["tests/phase0/dependency-probe"]
@@ -21,8 +22,10 @@ ferrum-application = { path = "crates/application" }
 ferrum-config = { path = "crates/config" }
 ferrum-contracts = { path = "crates/contracts" }
 ferrum-domain = { path = "crates/domain" }
+ferrum-infrastructure = { path = "crates/infrastructure" }
 ferrum-runtime = { path = "crates/runtime" }
 serde = { version = "=1.0.229", features = ["derive"] }
+sqlx = { version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring-native-roots", "macros", "migrate", "uuid", "json"] }
 thiserror = "=2.0.21"
 tokio = { version = "=1.54.1", features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
 tokio-util = "=0.7.20"

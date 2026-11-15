@@ -1,0 +1,17 @@
+[package]
+name = "ferrum-infrastructure"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ferrum-application.workspace = true
+ferrum-config.workspace = true
+ferrum-contracts.workspace = true
+ferrum-domain.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
