@@ -181,10 +181,7 @@ pub fn router(repository: PostgresSubmissions, caller: DevelopmentCaller) -> Rou
         .route("/v1/submissions/{id}", get(fetch))
         .route("/v1/submissions/{id}/cancel", post(cancel))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
-        .route_layer(middleware::from_fn_with_state(
-            auth_state,
-            authenticate,
-        ))
+        .route_layer(middleware::from_fn_with_state(auth_state, authenticate))
         .with_state(repository)
 }
 

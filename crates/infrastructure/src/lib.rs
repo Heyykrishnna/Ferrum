@@ -15,8 +15,7 @@ use sqlx::{
 use thiserror::Error;
 
 pub use api_keys::{
-    authenticate_api_key, create_api_key, generate_raw_key, hash_key, list_api_keys,
-    revoke_api_key,
+    authenticate_api_key, create_api_key, generate_raw_key, hash_key, list_api_keys, revoke_api_key,
 };
 pub use dispatcher::{dispatch_execution, execution_queue, setup_apalis};
 pub use execution::{

@@ -62,9 +62,10 @@ async fn create(
     )
     .await
     .map_err(|err| match err {
-        WebhookError::BlockedDestination => {
-            ApiError::bad_request("blocked_destination", "Destination is blocked by SSRF policy")
-        }
+        WebhookError::BlockedDestination => ApiError::bad_request(
+            "blocked_destination",
+            "Destination is blocked by SSRF policy",
+        ),
         WebhookError::InvalidScheme => {
             ApiError::bad_request("invalid_scheme", "Webhook URL scheme must be http or https")
         }

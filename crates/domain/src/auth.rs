@@ -100,10 +100,8 @@ impl ApiKey {
         if self.revoked_at.is_some() {
             return false;
         }
-        if let Some(exp) = self.expires_at {
-            if now >= exp {
-                return false;
-            }
+        if self.expires_at.is_some_and(|exp| now >= exp) {
+            return false;
         }
         true
     }
@@ -134,10 +132,7 @@ mod tests {
         assert_eq!(ApiKeyScope::parse("admin"), Some(ApiKeyScope::Admin));
         assert_eq!(ApiKeyScope::parse("invalid"), None);
         assert_eq!(ApiKeyScope::SubmissionsRead.as_str(), "submissions:read");
-        assert_eq!(
-            ApiKeyScope::SubmissionsRead.to_string(),
-            "submissions:read"
-        );
+        assert_eq!(ApiKeyScope::SubmissionsRead.to_string(), "submissions:read");
     }
 
     #[test]

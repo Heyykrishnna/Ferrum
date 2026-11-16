@@ -2,8 +2,8 @@ use ferrum_application::{IdempotencyKey, SubmissionError, SubmissionRepository};
 use ferrum_contracts::SubmissionCreated;
 use ferrum_domain::{
     BatchItemResult, BatchSubmissionResult, CaseContent, CaseFinding, CaseTelemetry,
-    ProcessingState, Submission, SubmissionCancelOutcome, SubmissionInput, SubmissionResult,
-    SubmissionStageResult, Verdict, MAX_BATCH_SIZE,
+    MAX_BATCH_SIZE, ProcessingState, Submission, SubmissionCancelOutcome, SubmissionInput,
+    SubmissionResult, SubmissionStageResult, Verdict,
 };
 use sqlx::{PgPool, types::Json};
 use uuid::Uuid;

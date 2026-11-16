@@ -51,13 +51,13 @@ fn compute_hmac_sha256(key_bytes: &[u8], message: &[u8]) -> [u8; 32] {
         opad[i] = key[i] ^ 0x5c;
     }
     let mut inner = Sha256::new();
-    inner.update(&ipad);
+    inner.update(ipad);
     inner.update(message);
     let inner_hash = inner.finalize();
 
     let mut outer = Sha256::new();
-    outer.update(&opad);
-    outer.update(&inner_hash);
+    outer.update(opad);
+    outer.update(inner_hash);
     outer.finalize().into()
 }
 
@@ -91,10 +91,11 @@ pub fn validate_webhook_url(raw: &str) -> Result<(), WebhookError> {
     {
         return Err(WebhookError::BlockedDestination);
     }
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        if is_private_or_restricted_ip(ip) {
-            return Err(WebhookError::BlockedDestination);
-        }
+    if host
+        .parse::<IpAddr>()
+        .is_ok_and(is_private_or_restricted_ip)
+    {
+        return Err(WebhookError::BlockedDestination);
     }
     Ok(())
 }
