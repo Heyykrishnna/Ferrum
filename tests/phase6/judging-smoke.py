@@ -37,7 +37,7 @@ def main() -> None:
             db.query(
                 "SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success"
             )
-            == "{1,2,3,4}"
+            == "{1,2,3,4,5}"
         )
 
         if args.isolate:
