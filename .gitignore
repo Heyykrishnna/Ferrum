@@ -4,3 +4,5 @@
 /target/
 /tests/phase0/dependency-probe/target/
 .DS_Store
+__pycache__/
+*.pyc

@@ -19,13 +19,13 @@ API keys follow a secure token format:
 
 Permissions are enforced on every route:
 
-| Scope | Allowed Operations |
-|---|---|
-| `submissions:read` | Read submission status, verdict, outputs, and case findings |
-| `submissions:write` | Create single or batch submissions |
-| `submissions:cancel` | Cancel pending or running submissions |
-| `webhooks:manage` | Create, list, and delete webhook destinations |
-| `admin` | Full administrative access, including API key creation and revocation |
+| Scope                | Allowed Operations                                                    |
+| -------------------- | --------------------------------------------------------------------- |
+| `submissions:read`   | Read submission status, verdict, outputs, and case findings           |
+| `submissions:write`  | Create single or batch submissions                                    |
+| `submissions:cancel` | Cancel pending or running submissions                                 |
+| `webhooks:manage`    | Create, list, and delete webhook destinations                         |
+| `admin`              | Full administrative access, including API key creation and revocation |
 
 Development environments can also authenticate using the master bearer token (`FERRUM_DEV_TOKEN`), which grants `admin` scope.
 
@@ -120,6 +120,7 @@ X-Ferrum-Signature: t=1700000000,v1=9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890c
 ```
 
 Where:
+
 - `t`: UNIX timestamp in seconds
 - `v1`: Hex-encoded HMAC-SHA256 of `${timestamp}.${payload}` using the endpoint's secret key (`whsec_...`).
 
@@ -128,6 +129,7 @@ Where:
 ## 6. OpenAPI Specification
 
 The complete API surface is specified in:
+
 - [docs/openapi.yaml](openapi.yaml)
 - [docs/openapi.json](openapi.json)
 
@@ -144,6 +146,7 @@ python3 tests/phase7/production-api-smoke.py
 ```
 
 This verifies:
+
 - Database schema migration up to version 5.
 - API key generation and SHA-256 verification.
 - Scoped permissions (`submissions:read`, `submissions:write`, `submissions:cancel`, `webhooks:manage`, `admin`).
