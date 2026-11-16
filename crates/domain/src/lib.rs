@@ -3,6 +3,7 @@ mod batch;
 mod languages;
 mod policy;
 mod recovery;
+pub mod telemetry;
 mod webhooks;
 
 pub use auth::{ApiKey, ApiKeyScope, AuthContext};
@@ -12,6 +13,7 @@ pub use policy::{EffectiveLimits, RequestedLimits, SubmissionInput, ValidationEr
 pub use recovery::{
     QuarantinedAttempt, ReconciledAttempt, ReconciliationSummary, StaleAttemptAction,
 };
+pub use telemetry::{ExecutionStage, OutcomeClass, StageDuration, TraceContext};
 pub use webhooks::{WebhookDelivery, WebhookEndpoint};
 
 use serde::{Deserialize, Serialize};
