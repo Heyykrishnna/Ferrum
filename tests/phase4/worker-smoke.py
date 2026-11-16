@@ -149,6 +149,33 @@ def verify_isolate(api: Path, worker_binary: Path, db, database_env: dict[str, s
         print(f"Isolate verified submission {submission_id}")
 
 
+def verify_worker_status(api: Path, url: str, db, workers_initialized: bool) -> None:
+    tenant, token = str(uuid4()), secrets.token_hex(32)
+    env = phase2["api_env"](url, tenant, token)
+    endpoint = "/v1/execution/status"
+    with phase2["running_api"](api, env) as port:
+        assert phase2["request"](port, "GET", endpoint)[0] == 401
+
+        def status():
+            return phase2["request"](port, "GET", endpoint, token=token)[:2]
+
+        if not workers_initialized:
+            assert status() == (200, {"worker": "queue_uninitialized"}), status()
+            return
+
+        db.query("""
+            INSERT INTO apalis.workers (id, worker_type, storage_name, last_seen) VALUES
+            ('ferrum-stale-fixture', 'ferrum.execute.v1', 'postgres', now() - interval '10 minutes'),
+            ('other-queue-fixture', 'unrelated.queue', 'postgres', now())
+        """)
+        try:
+            assert status() == (200, {"worker": "offline"}), status()
+            db.query("UPDATE apalis.workers SET last_seen = now() WHERE id = 'ferrum-stale-fixture'")
+            assert status() == (200, {"worker": "available"}), status()
+        finally:
+            db.query("DELETE FROM apalis.workers WHERE id IN ('ferrum-stale-fixture', 'other-queue-fixture')")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--isolate", action="store_true")
@@ -168,7 +195,10 @@ def main() -> None:
         for binary in (api, worker_binary):
             for _ in range(2):
                 subprocess.run([binary, "migrate"], env=env, check=True, timeout=20)
+            if binary == api:
+                verify_worker_status(api, url, db, workers_initialized=False)
 
+        verify_worker_status(api, url, db, workers_initialized=True)
         if args.isolate:
             verify_isolate(api, worker_binary, db, env)
         else:

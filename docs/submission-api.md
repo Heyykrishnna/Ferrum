@@ -63,3 +63,5 @@ Errors have an `error` object with a stable `code` and a human-readable `message
 | 500 | Unexpected storage failure |
 
 `/health/live` reports the API process. With intake enabled, `/health/ready` probes PostgreSQL and returns HTTP 503 when the probe fails or shutdown begins.
+
+`GET /v1/execution/status` requires a bearer token with `submissions:read`. It reports `worker: available` when the Ferrum Apalis queue has a heartbeat newer than two heartbeat intervals (60 seconds), `offline` when no heartbeat is fresh, or `queue_uninitialized` before the worker migrations have been applied. A recent heartbeat indicates that a worker is present. Jobs can still wait for a free slot. If API and worker database roles differ, grant the API role read access to `apalis.workers` for this check.

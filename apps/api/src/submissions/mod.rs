@@ -168,6 +168,34 @@ async fn languages() -> Json<Vec<LanguageResponse>> {
     )
 }
 
+#[derive(Serialize)]
+struct ExecutionStatus {
+    worker: &'static str,
+}
+
+async fn execution_status(
+    State(repository): State<PostgresSubmissions>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Json<ExecutionStatus>, ApiError> {
+    use ferrum_infrastructure::dispatcher::{WorkerAvailability, execution_worker_availability};
+
+    require_scope(&auth, ApiKeyScope::SubmissionsRead)?;
+    let availability = execution_worker_availability(repository.pool())
+        .await
+        .map_err(|_| {
+            ApiError::internal(
+                "worker_status_unavailable",
+                "Could not check Ferrum worker status",
+            )
+        })?;
+    let worker = match availability {
+        WorkerAvailability::Available => "available",
+        WorkerAvailability::Offline => "offline",
+        WorkerAvailability::QueueUninitialized => "queue_uninitialized",
+    };
+    Ok(Json(ExecutionStatus { worker }))
+}
+
 pub fn router(repository: PostgresSubmissions, caller: DevelopmentCaller) -> Router {
     let auth_state = AuthState {
         repository: repository.clone(),
@@ -176,6 +204,7 @@ pub fn router(repository: PostgresSubmissions, caller: DevelopmentCaller) -> Rou
 
     Router::new()
         .route("/v1/languages", get(languages))
+        .route("/v1/execution/status", get(execution_status))
         .route("/v1/submissions", post(create))
         .route("/v1/submissions/batch", post(create_batch))
         .route("/v1/submissions/{id}", get(fetch))

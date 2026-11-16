@@ -9,6 +9,7 @@ The Rust workspace builds an Axum API with health endpoints and PostgreSQL-backe
 | [phases/](phases/README.md) | Phases 0–10, architecture sketch, implementation tasks and acceptance checks |
 | [docs/](docs/README.md) | Architecture, technology choices, threat model and first milestone contract |
 | [apps/](apps/README.md) | API and worker entry points |
+| [web/](web/README.md) | Monaco playground for running and judging code |
 | [crates/](crates/README.md) | Ownership and dependencies for Rust modules |
 | [configs/](configs/README.md) | Settings, credentials and toolchain policy |
 | [migrations/](migrations/README.md) | Order and ownership of database changes |

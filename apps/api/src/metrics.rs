@@ -80,6 +80,8 @@ fn normalize_path(path: &str) -> &'static str {
         "/metrics"
     } else if path == "/v1/languages" {
         "/v1/languages"
+    } else if path == "/v1/execution/status" {
+        "/v1/execution/status"
     } else if path == "/v1/statuses" {
         "/v1/statuses"
     } else if path == "/v1/me" {

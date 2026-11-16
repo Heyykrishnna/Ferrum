@@ -41,6 +41,48 @@
         }
       }
     },
+    "/v1/execution/status": {
+      "get": {
+        "summary": "Check whether an execution worker recently sent a heartbeat",
+        "operationId": "getExecutionStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worker status for the Ferrum execution queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "worker"
+                  ],
+                  "properties": {
+                    "worker": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "offline",
+                        "queue_uninitialized"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/v1/submissions": {
       "post": {
         "summary": "Create code execution or judging submission",

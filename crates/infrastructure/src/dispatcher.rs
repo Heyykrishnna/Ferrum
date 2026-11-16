@@ -11,6 +11,41 @@ use super::execution::{ExecutionError, execution_storage};
 const QUEUE: &str = "ferrum.execute.v1";
 pub(crate) const RETRY_EVENT: &str = "submission.execution_retry";
 
+pub enum WorkerAvailability {
+    Available,
+    Offline,
+    QueueUninitialized,
+}
+
+pub async fn execution_worker_availability(
+    pool: &PgPool,
+) -> Result<WorkerAvailability, ExecutionError> {
+    let max_heartbeat_age = Config::default().heartbeat_interval.as_secs_f64() * 2.0;
+    let result = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (
+            SELECT 1 FROM apalis.workers
+            WHERE worker_type = $1 AND last_seen > now() - make_interval(secs => $2)
+        )",
+    )
+    .bind(QUEUE)
+    .bind(max_heartbeat_age)
+    .fetch_one(pool)
+    .await;
+    match result {
+        Ok(true) => Ok(WorkerAvailability::Available),
+        Ok(false) => Ok(WorkerAvailability::Offline),
+        Err(error)
+            if error
+                .as_database_error()
+                .and_then(|error| error.code())
+                .is_some_and(|code| matches!(code.as_ref(), "42P01" | "3F000")) =>
+        {
+            Ok(WorkerAvailability::QueueUninitialized)
+        }
+        Err(error) => Err(execution_storage(error)),
+    }
+}
+
 #[derive(sqlx::FromRow)]
 struct OutboxEvent {
     id: Uuid,
