@@ -343,7 +343,7 @@ def main() -> None:
             subprocess.run(
                 [binary, "migrate"], env=migration_env, check=True, timeout=15
             )
-        assert db.query("SELECT count(*) FROM _sqlx_migrations WHERE success") == "1"
+        assert db.query("SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success") == "{1,2}"
 
         with running_api(binary, env) as port:
             assert request(port, "GET", "/health/ready")[:2] == (

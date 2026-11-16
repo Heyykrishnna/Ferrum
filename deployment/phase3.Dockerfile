@@ -7,7 +7,7 @@ RUN rustup component add clippy rustfmt \
     && install -d -o ferrum-check -g ferrum-check /workspace/target
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-COPY apps/api/ apps/api/
+COPY apps/ apps/
 COPY crates/ crates/
 COPY migrations/ migrations/
 
