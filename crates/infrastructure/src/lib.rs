@@ -1,3 +1,4 @@
+pub mod api_keys;
 pub mod dispatcher;
 pub mod execution;
 mod submissions;
@@ -12,6 +13,10 @@ use sqlx::{
 };
 use thiserror::Error;
 
+pub use api_keys::{
+    authenticate_api_key, create_api_key, generate_raw_key, hash_key, list_api_keys,
+    revoke_api_key,
+};
 pub use dispatcher::{dispatch_execution, execution_queue, setup_apalis};
 pub use execution::{
     AttemptReport, ExecutionError, ExecutionInput, ExecutionOwner, claim_execution,

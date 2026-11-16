@@ -31,8 +31,11 @@ ferrum-infrastructure = { path = "crates/infrastructure" }
 ferrum-judge = { path = "crates/judge" }
 ferrum-runtime = { path = "crates/runtime" }
 ferrum-sandbox = { path = "crates/sandbox" }
+hex = "=0.4.3"
+hmac = "=0.13.0"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
+sha2 = "=0.10.9"
 sqlx = { version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring-native-roots", "macros", "migrate", "uuid", "json"] }
 subtle = "=2.6.1"
 thiserror = "=2.0.21"
