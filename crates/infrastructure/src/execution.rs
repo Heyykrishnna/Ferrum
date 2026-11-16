@@ -1,7 +1,7 @@
 use ferrum_contracts::{ExecuteSubmission, SubmissionCompleted, SubmissionCreated};
 use ferrum_domain::{
-    ComparisonMode, EffectiveLimits, ProcessingState, ReconciledAttempt, StaleAttemptAction,
-    SubmissionInput, TestCase, ValidationError, Verdict,
+    ComparisonMode, EffectiveLimits, ProcessingState, QuarantinedAttempt, ReconciledAttempt,
+    StaleAttemptAction, SubmissionInput, TestCase, ValidationError, Verdict,
 };
 use ferrum_sandbox::{
     CleanupDisposition, ExecutionReport, ExecutionResult, ProgramOutcome, SandboxError,
@@ -440,6 +440,84 @@ pub async fn reconcile_stale_attempts(
     }
 
     Ok(reconciled)
+}
+
+#[derive(sqlx::FromRow)]
+struct StoredQuarantinedAttempt {
+    organization_id: Uuid,
+    submission_id: Uuid,
+    id: Uuid,
+    worker_id: Option<Uuid>,
+    failure_reason: Option<String>,
+    cleanup_error: Option<String>,
+    created_at: Option<i64>,
+}
+
+pub async fn list_quarantined_attempts(
+    pool: &PgPool,
+) -> Result<Vec<QuarantinedAttempt>, ExecutionError> {
+    let rows = sqlx::query_as::<_, StoredQuarantinedAttempt>(
+        "SELECT organization_id, submission_id, id, worker_id, failure_reason, cleanup_error,
+                COALESCE(EXTRACT(EPOCH FROM started_at)::bigint, 0) AS created_at
+         FROM execution_attempts
+         WHERE cleanup_disposition = 'unresolved' AND cleanup_recovered_at IS NULL
+         ORDER BY started_at ASC, id ASC",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(execution_storage)?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| QuarantinedAttempt {
+            organization_id: row.organization_id,
+            submission_id: row.submission_id,
+            attempt_id: row.id,
+            worker_id: row.worker_id.unwrap_or_default(),
+            failure_reason: row.failure_reason,
+            cleanup_error: row.cleanup_error,
+            created_at: row.created_at.unwrap_or_default(),
+        })
+        .collect())
+}
+
+pub async fn resolve_quarantine(pool: &PgPool, attempt_id: Uuid) -> Result<bool, ExecutionError> {
+    let updated = sqlx::query(
+        "UPDATE execution_attempts
+         SET cleanup_recovered_at = now()
+         WHERE id = $1 AND cleanup_disposition = 'unresolved' AND cleanup_recovered_at IS NULL",
+    )
+    .bind(attempt_id)
+    .execute(pool)
+    .await
+    .map_err(execution_storage)?;
+
+    let resolved = updated.rows_affected() == 1;
+    if resolved {
+        tracing::info!(event = "quarantine_resolved", %attempt_id);
+    }
+    Ok(resolved)
+}
+
+pub async fn resolve_all_quarantines_for_host(
+    pool: &PgPool,
+    host_id: Uuid,
+) -> Result<u64, ExecutionError> {
+    let updated = sqlx::query(
+        "UPDATE execution_attempts
+         SET cleanup_recovered_at = now()
+         WHERE host_id = $1 AND cleanup_disposition = 'unresolved' AND cleanup_recovered_at IS NULL",
+    )
+    .bind(host_id)
+    .execute(pool)
+    .await
+    .map_err(execution_storage)?;
+
+    let count = updated.rows_affected();
+    if count > 0 {
+        tracing::info!(event = "host_quarantines_resolved", %host_id, count);
+    }
+    Ok(count)
 }
 
 async fn set_submission_state(

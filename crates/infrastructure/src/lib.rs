@@ -20,7 +20,9 @@ pub use api_keys::{
 pub use dispatcher::{dispatch_execution, execution_queue, reconcile_stuck_outbox, setup_apalis};
 pub use execution::{
     AttemptReport, ExecutionError, ExecutionInput, ExecutionOwner, claim_execution,
-    finalize_execution, reconcile_stale_attempts, recover_after_host_probe, renew_attempt_lease,
+    finalize_execution, list_quarantined_attempts, reconcile_stale_attempts,
+    recover_after_host_probe, renew_attempt_lease, resolve_all_quarantines_for_host,
+    resolve_quarantine,
 };
 pub use submissions::PostgresSubmissions;
 pub use webhooks::{
