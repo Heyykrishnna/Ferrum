@@ -166,7 +166,12 @@ export default function App() {
       <div className="mx-auto flex max-w-[1250px] flex-col overflow-hidden rounded-[12px] border border-edge bg-surface shadow-[0_12px_50px_#18202024]">
         <header className="flex min-h-13 flex-wrap items-center justify-between gap-x-5 gap-y-2 border-b border-edge bg-chrome px-4 py-2 sm:px-6">
           <div className="flex items-center gap-3 text-[13px]">
-            <span className="font-semibold tracking-tight">Ferrum</span>
+            <a
+              href="/"
+              className="font-semibold tracking-tight hover:underline"
+            >
+              Ferrum
+            </a>
             <span aria-hidden="true" className="text-muted">
               /
             </span>

@@ -18,12 +18,13 @@ createServer((request, response) => {
     'Content-Security-Policy',
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   );
-  void gateway(request, response, () =>
+  void gateway(request, response, () => {
+    if (/^\/playground\/?(\?.*)?$/.test(request.url ?? '')) request.url = '/';
     staticFiles(request, response, () => {
       response.writeHead(404);
       response.end('Not found');
-    }),
-  );
+    });
+  });
 }).listen(port, '127.0.0.1', () => {
   console.log(`Ferrum Playground is listening at http://127.0.0.1:${port}`);
 });
