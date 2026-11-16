@@ -18,7 +18,7 @@ python3 -I -u tests/phase4/worker-smoke.py
 
 This suite uses the pinned PostgreSQL-backed Apalis queue and a Rust test double for controlled sandbox responses. It checks atomic dispatch, concurrency, tenant isolation, stale ownership, retry exhaustion, resource verdicts, cleanup recovery, durable results, acknowledgment and drain.
 
-For real Python execution, use a dedicated Debian 13 amd64 host that passes the [Phase 3 host qualification](phase3-isolate.md#qualify-the-adapter). Run the following as the ordinary Isolate worker account, with box 0 reserved for Ferrum and Docker Compose available for the disposable database. Install the [Phase 5 toolchains](phase5-languages.md#qualify-the-linux-worker) before this run.
+For real Python execution, use a dedicated Debian 13 amd64 or arm64 host that passes the [Phase 3 host qualification](phase3-isolate.md#qualify-the-adapter). Run the following as the ordinary Isolate worker account, with box 0 reserved for Ferrum and Docker Compose available for the disposable database. Install the [Phase 5 toolchains](phase5-languages.md#qualify-the-linux-worker) before this run.
 
 ```sh
 git rev-parse HEAD

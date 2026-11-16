@@ -212,9 +212,10 @@ fn run_stage(
         workspace,
         "--dir=/usr:norec",
         "--dir=/lib:norec",
-        "--dir=/lib64:norec",
         "--dir=/proc=proc:fs",
     ]);
+    #[cfg(target_arch = "x86_64")]
+    cmd.arg("--dir=/lib64:norec");
     if runtime {
         cmd.arg("--stdin=/box/input");
     }
@@ -408,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires the dedicated Debian amd64 Isolate worker and all toolchains"]
+    #[ignore = "requires the dedicated Debian amd64 or arm64 Isolate worker and all toolchains"]
     fn compiler_deadlines_skip_run_for_every_compiled_profile() {
         let host = Host::open().expect("qualified worker");
         for profile in LANGUAGES {

@@ -20,7 +20,7 @@ MOUNTS = (
     "--dir=/box=./box:rw",
     "--dir=/usr:norec",
     "--dir=/lib:norec",
-    "--dir=/lib64:norec",
+    *(("--dir=/lib64:norec",) if platform.machine() == "x86_64" else ()),
     "--dir=/proc=proc:fs",
 )
 
@@ -42,8 +42,8 @@ def box_is_reserved(group: Path) -> bool:
 
 def preflight() -> Path:
     require(
-        platform.system() == "Linux" and platform.machine() == "x86_64",
-        "use a disposable Debian 13 amd64 Linux VM",
+        platform.system() == "Linux" and platform.machine() in {"x86_64", "aarch64"},
+        "use a disposable Debian 13 amd64 or arm64 Linux VM",
     )
     require(
         platform.freedesktop_os_release().get("ID") == "debian"
@@ -78,11 +78,38 @@ def preflight() -> Path:
         "box_root=/var/lib/isolate lock_root=/run/isolate/locks " in config,
         "this verifier requires the package's default box and lock roots",
     )
-    require(
-        command("findmnt", "-n", "-T", str(BOX.parent), "-o", "TARGET,FSTYPE")
-        == "/var/lib/isolate tmpfs",
-        "mount the dedicated, quota-enabled tmpfs",
-    )
+    source, filesystem, raw_options = command(
+        "findmnt", "-n", "-M", str(BOX.parent), "-o", "SOURCE,FSTYPE,OPTIONS"
+    ).split()
+    options = set(raw_options.split(","))
+    require({"nosuid", "nodev"} <= options, "restrict the workspace mount")
+    if filesystem == "ext4" and platform.machine() == "aarch64":
+        backing = Path("/run/ferrum-workspace/isolate.ext4")
+        require(
+            re.fullmatch(r"/dev/loop[0-9]+", source) is not None
+            and Path(f"/sys/block/{Path(source).name}/loop/backing_file").read_text().strip() == str(backing),
+            "use the dedicated memory-backed loop device",
+        )
+        backing_type, backing_options = command(
+            "findmnt", "-n", "-M", str(backing.parent), "-o", "FSTYPE,OPTIONS"
+        ).split()
+        require(
+            backing_type == "tmpfs"
+            and {"size=262144k", "nodev", "nosuid", "noexec"} <= set(backing_options.split(","))
+            and not backing.is_symlink()
+            and backing.is_file()
+            and backing.stat().st_uid == 0
+            and backing.stat().st_mode & 0o777 == 0o600
+            and backing.stat().st_nlink == 1
+            and backing.stat().st_size == 256 * 1024 * 1024
+            and "usrquota" in options,
+            "enable user quotas on the dedicated memory-backed ext4 workspace",
+        )
+    else:
+        require(
+            filesystem == "tmpfs" and bool({"usrquota", "quota"} & options),
+            "mount the dedicated quota-enabled tmpfs",
+        )
     require(
         len(Path("/proc/swaps").read_text().splitlines()) == 1,
         "disable swap on this VM",

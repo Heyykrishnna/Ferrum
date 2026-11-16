@@ -58,7 +58,10 @@ impl<'a> Metadata<'a> {
         Ok(outcome)
     }
 
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     pub(crate) fn supervisor_failed(&self) -> bool {
         self.status == Some("XX")
     }

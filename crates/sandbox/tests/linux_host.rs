@@ -1,4 +1,7 @@
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#![cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 
 use std::{fs, net::TcpListener, path::Path, time::Duration};
 
@@ -27,7 +30,7 @@ async fn run(
 }
 
 #[tokio::test]
-#[ignore = "requires the dedicated Debian 13 amd64 Isolate 2.7 host"]
+#[ignore = "requires the dedicated Debian 13 amd64 or arm64 Isolate 2.7 host"]
 async fn verifies_the_real_isolate_adapter() {
     let sandbox = Isolate::open()
         .await

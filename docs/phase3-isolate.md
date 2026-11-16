@@ -1,6 +1,6 @@
 # Phase 3 Rust Isolate adapter
 
-The adapter runs the `python3.13-v1` profile on the dedicated Debian 13 amd64 worker profile. It reserves Isolate box 0 for one execution at a time. The Phase 4 queue worker uses this adapter to execute persisted Python submissions. [Linux worker setup](phase0-linux-worker.md) · [Phase 4 handoff](../phases/04-apalis-worker-pipeline.md)
+The adapter runs the `python3.13-v1` profile on the dedicated Debian 13 amd64 or arm64 worker profile. It reserves Isolate box 0 for one execution at a time. The Phase 4 queue worker uses this adapter to execute persisted Python submissions. [Linux worker setup](phase0-linux-worker.md) · [Phase 4 handoff](../phases/04-apalis-worker-pipeline.md)
 
 ## Run the Linux checks in Docker
 
@@ -15,7 +15,7 @@ The image runs Rust formatting, Clippy, and the portable domain and Linux proces
 
 ## Qualify the adapter
 
-Follow the package and mount setup on a dedicated Debian 13 amd64 host, then use the combined verification command below. The target uses Isolate 2.7, cgroup v2, the dedicated quota-enabled tmpfs, swap disabled, and the stock Isolate syscall restrictions. The adapter also requires `fs.protected_hardlinks=1` and a direct kernel core pattern so `--core=0` applies. A core pattern starting with a pipe sends dumps to a host handler outside that limit. [Phase 0 host setup](phase0-linux-worker.md#run-on-a-fresh-vm)
+Follow the package and mount setup on a dedicated Debian 13 amd64 or arm64 host, then use the combined verification command below. The target uses Isolate 2.7, cgroup v2, a quota-enabled workspace, swap disabled, and the stock Isolate syscall restrictions. The adapter also requires `fs.protected_hardlinks=1` and a direct kernel core pattern so `--core=0` applies. A core pattern starting with a pipe sends dumps to a host handler outside that limit. [Phase 0 host setup](phase0-linux-worker.md#run-on-a-fresh-vm) · [Apple Silicon setup](macos-worker.md)
 
 Create the private recovery directory once on the host. Use the ordinary Isolate worker account for the Rust tests.
 

@@ -1,0 +1,8 @@
+[Unit]
+Description=Ferrum local execution worker
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/ferrum/worker.env
+ExecStart=%h/.local/bin/ferrum-worker
+TimeoutStopSec=35

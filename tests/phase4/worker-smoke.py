@@ -180,8 +180,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--isolate", action="store_true")
     args = parser.parse_args()
-    if args.isolate and (platform.system(), platform.machine()) != ("Linux", "x86_64"):
-        parser.error("--isolate requires the qualified Debian 13 amd64 host")
+    if args.isolate and (platform.system() != "Linux" or platform.machine() not in {"x86_64", "aarch64"}):
+        parser.error("--isolate requires a qualified Debian 13 amd64 or arm64 host")
 
     cargo("build", "--locked", "-p", "ferrum-api", "-p", "ferrum-worker")
     metadata = json.loads(cargo("metadata", "--locked", "--no-deps", "--format-version=1"))

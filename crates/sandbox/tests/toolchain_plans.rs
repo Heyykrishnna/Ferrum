@@ -1,4 +1,7 @@
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#![cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 
 #[path = "fixtures/languages.rs"]
 mod languages;
@@ -32,7 +35,7 @@ impl Drop for Workspace {
 }
 
 #[test]
-#[ignore = "requires the disposable Debian amd64 toolchain container"]
+#[ignore = "requires the disposable Debian amd64 or arm64 toolchain container"]
 fn trusted_toolchain_commands_echo_and_report_errors() {
     assert!(Path::new("/.dockerenv").exists());
     for fixture in languages::FIXTURES {

@@ -20,7 +20,7 @@ Isolate compiles and runs submitted code with fixed executable paths and argumen
 | C, C++ and Java compilation | 8 s / 12 s | 512 MiB |
 | Rust compilation | 8 s / 12 s | 768 MiB |
 
-The compiler may write files up to 8 MiB each within a 32 MiB workspace quota. The worker holds one slot throughout compilation and execution, including cleanup. Successful compilation is followed by a fresh Isolate invocation in the same box after the cgroup is empty. Isolate 2.7 reports cumulative cgroup memory peak across invocations, so Ferrum reports the compiler peak and leaves the runtime peak null for compiled submissions. Interpreted profiles still report their runtime peak. [Isolate manual](https://github.com/ioi/isolate/blob/v2.7/isolate.1.txt)
+The compiler may write files up to 8 MiB each within a 32 MiB workspace quota. Rust omits linked debug sections so standard-library debug information fits within the same file limit on ARM64. The worker holds one slot throughout compilation and execution, including cleanup. Successful compilation is followed by a fresh Isolate invocation in the same box after the cgroup is empty. Isolate 2.7 reports cumulative cgroup memory peak across invocations, so Ferrum reports the compiler peak and leaves the runtime peak null for compiled submissions. Interpreted profiles still report their runtime peak. [Isolate manual](https://github.com/ioi/isolate/blob/v2.7/isolate.1.txt)
 
 ## Verify in Docker
 
@@ -38,7 +38,7 @@ The image checks fixed toolchain commands with trusted fixtures. The PostgreSQL 
 
 ## Qualify the Linux worker
 
-Start with a [Phase 3-qualified Debian 13 amd64 host](phase3-isolate.md#qualify-the-adapter). Install the toolchain packages from Debian 13:
+Start with a [Phase 3-qualified Debian 13 amd64 or arm64 host](phase3-isolate.md#qualify-the-adapter). Install the toolchain packages from Debian 13:
 
 ```sh
 sudo apt-get update

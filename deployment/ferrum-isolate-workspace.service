@@ -1,0 +1,11 @@
+[Unit]
+Description=Ferrum memory-backed Isolate workspace
+Before=isolate.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ferrum-isolate-workspace
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

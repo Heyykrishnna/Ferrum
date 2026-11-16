@@ -1,4 +1,7 @@
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#![cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 
 #[path = "fixtures/languages.rs"]
 mod languages;
@@ -10,7 +13,7 @@ use ferrum_sandbox::{
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
-#[ignore = "requires a Phase 3-qualified Debian amd64 worker with all Phase 5 toolchains"]
+#[ignore = "requires a Phase 3-qualified Debian amd64 or arm64 worker with all Phase 5 toolchains"]
 async fn phase5_language_matrix() {
     let sandbox = Isolate::open_with_toolchains()
         .await
@@ -27,10 +30,14 @@ async fn phase5_language_matrix() {
         assert_eq!(
             succeeded.outcome,
             ProgramOutcome::Success,
-            "{} stdout {:?} stderr {:?}",
+            "{} stdout {:?} stderr {:?} compiler stderr {:?}",
             fixture.language,
             succeeded.stdout,
-            succeeded.stderr
+            succeeded.stderr,
+            succeeded
+                .compilation
+                .as_ref()
+                .map(|compile| String::from_utf8_lossy(&compile.stderr))
         );
         assert_eq!(succeeded.stdout, b"ferrum phase 5\n");
         assert_eq!(succeeded.facts.exit_code, Some(0));

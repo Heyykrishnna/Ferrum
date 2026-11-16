@@ -67,6 +67,18 @@ const NATIVE_LIMITS: EffectiveLimits = EffectiveLimits {
     ..PYTHON_LIMITS
 };
 
+const JAVA: &str = if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+    "/usr/lib/jvm/java-21-openjdk-arm64/bin/java"
+} else {
+    "/usr/lib/jvm/java-21-openjdk-amd64/bin/java"
+};
+
+const JAVAC: &str = if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+    "/usr/lib/jvm/java-21-openjdk-arm64/bin/javac"
+} else {
+    "/usr/lib/jvm/java-21-openjdk-amd64/bin/javac"
+};
+
 pub const LANGUAGES: &[LanguageProfile] = &[
     LanguageProfile {
         id: 1,
@@ -160,13 +172,13 @@ pub const LANGUAGES: &[LanguageProfile] = &[
         revision: "openjdk21-v1",
         source_file: "Main.java",
         toolchain: Toolchain {
-            program: "/usr/lib/jvm/java-21-openjdk-amd64/bin/javac",
+            program: JAVAC,
             version_args: &["-version"],
             version_prefix: "javac 21.",
         },
         compile: Some(CompilationPlan {
             command: CommandPlan {
-                program: "/usr/lib/jvm/java-21-openjdk-amd64/bin/javac",
+                program: JAVAC,
                 args: &[
                     "-J-XX:ActiveProcessorCount=1",
                     "-J-XX:+UseSerialGC",
@@ -187,7 +199,7 @@ pub const LANGUAGES: &[LanguageProfile] = &[
             limits: COMPILATION_LIMITS,
         }),
         run: CommandPlan {
-            program: "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+            program: JAVA,
             args: &[
                 "-XX:ActiveProcessorCount=1",
                 "-XX:+UseSerialGC",
@@ -226,6 +238,8 @@ pub const LANGUAGES: &[LanguageProfile] = &[
                     "codegen-units=1",
                     "-C",
                     "linker=/usr/bin/gcc-14",
+                    "-C",
+                    "link-arg=-Wl,--strip-debug",
                     "-o",
                     "/box/program",
                     "/box/main.rs",

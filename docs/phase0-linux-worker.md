@@ -1,13 +1,13 @@
 # Phase 0 Linux worker qualification
 
-The candidate runner is a disposable Debian 13 (Trixie) amd64 VM, booted with Debian's stock Linux 6.12 series kernel and systemd. Use a dedicated VM with at least 2 vCPUs and 2 GiB RAM for these checks. A maintainer can use this same image and configuration for a dedicated CI VM once the profile is verified. The Mac and ordinary hosted or Docker runners can build the Rust probe but cannot qualify the sandbox.
+The candidate runner is a disposable Debian 13 (Trixie) amd64 or arm64 VM, booted with Debian's stock Linux 6.12 series kernel and systemd. Use a dedicated VM with at least 2 vCPUs and 2 GiB RAM for these checks. A maintainer can use this same image and configuration for a dedicated CI VM once the profile is verified. The Mac and ordinary hosted or Docker runners can build the Rust probe but cannot qualify the sandbox.
 
 | Component | Candidate configuration |
 |---|---|
-| Isolate | Upstream Debian amd64 package `isolate=2.7` from the signed `trixie-isolate` APT repository; stock configuration and system call restrictions |
+| Isolate | Upstream Debian package matching the guest architecture `isolate=2.7` from the signed `trixie-isolate` APT repository; stock configuration and system call restrictions |
 | Privilege | Only the package's Isolate helper has elevated privileges. The verifier runs as an ordinary user in the `isolate` group. The sandbox has its own unprivileged UID/GID. |
 | cgroups | Unified cgroup v2, with `isolate.service` providing delegated `cpuset` and `memory` and cgroup CPU accounting. Swap is disabled for this profile. |
-| Workspace | Dedicated tmpfs at `/var/lib/isolate` with user quotas. Only the per-attempt `/box` is writable. Expose the stock runtime's `/usr`, `/lib`, and `/lib64` read-only and non-recursively; mount a sandbox-local read-only `/proc`. |
+| Workspace | A dedicated filesystem at `/var/lib/isolate` with user quotas. Use quota-enabled tmpfs, or on arm64 the [memory-backed ext4 workspace](macos-worker.md). Only the per-attempt `/box` is writable. Mount `/usr` and `/lib` read-only and non-recursively, along with `/lib64` on amd64. Mount a sandbox-local read-only `/proc`. |
 | Network and environment | Use Isolate's separate network namespace and keep only its sandbox loopback. Pass no inherited environment or extra descriptors. Keep database, queue, telemetry, and other service credentials on the trusted side. |
 | Python | Debian's `python3.13` package, at `/usr/bin/python3`. Run `/usr/bin/python3 -I -B /box/main.py`, with one server-named source file, bounded stdin, and no compilation or third-party package installation. Record the exact package revision from the verified VM. |
 
@@ -40,12 +40,13 @@ key_file=$(mktemp)
 curl -fsSLo "$key_file" https://www.ucw.cz/isolate/debian/signing-key.asc &&
   sudo install -m 0644 "$key_file" /etc/apt/keyrings/isolate.asc
 rm -f "$key_file"
-sudo tee /etc/apt/sources.list.d/isolate.sources >/dev/null <<'APT'
+ferrum_debian_architecture=$(dpkg --print-architecture)
+sudo tee /etc/apt/sources.list.d/isolate.sources >/dev/null <<APT
 Types: deb
 URIs: https://www.ucw.cz/isolate/debian/
 Suites: trixie-isolate
 Components: main
-Architectures: amd64
+Architectures: $ferrum_debian_architecture
 Signed-By: /etc/apt/keyrings/isolate.asc
 APT
 sudo apt-get update
@@ -56,7 +57,7 @@ sudo adduser "$(id -un)" isolate
 sudo swapoff -a
 ```
 
-Confirm `/var/lib/isolate` is an empty package-created directory and has no existing mount before mounting the workspace:
+Confirm `/var/lib/isolate` is an empty package-created directory and has no existing mount before mounting the workspace. For an ARM64 kernel without tmpfs quotas, use the [memory-backed ext4 setup](macos-worker.md#create-and-qualify-the-guest). Otherwise mount the quota-enabled tmpfs:
 
 ```sh
 sudo ls -A /var/lib/isolate

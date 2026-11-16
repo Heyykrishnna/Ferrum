@@ -14,7 +14,7 @@ COPY migrations/ migrations/
 ENV CARGO_HOME=/home/ferrum-check/.cargo
 
 USER ferrum-check
-RUN cargo fetch --locked --target x86_64-unknown-linux-gnu
+RUN cargo fetch --locked --target "$(rustc --print host-tuple)"
 
 ENV CARGO_NET_OFFLINE=true
 

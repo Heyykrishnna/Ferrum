@@ -124,6 +124,6 @@ Run the Phase 8 test suite:
 # Test with PostgreSQL and sandbox test-double:
 python3 tests/phase8/security-adversarial-smoke.py
 
-# Test with live Isolate sandboxes on qualified Debian 13 amd64 host:
+# Test with live Isolate sandboxes on qualified Debian 13 amd64 or arm64 host:
 python3 tests/phase8/security-adversarial-smoke.py --isolate
 ```

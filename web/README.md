@@ -8,6 +8,8 @@ Install Node 24.11 or later. Configure and launch the [Ferrum API](../docs/submi
 
 On the qualified Linux host, point `FERRUM_DATABASE_URL` at the same PostgreSQL instance the API uses over a private connection. Run `cargo run --locked -p ferrum-worker -- migrate` followed by `cargo run --locked -p ferrum-worker`. The playground checks for a recent worker heartbeat and enables **Run** and **Submit** when one appears. Existing submissions stay in PostgreSQL while the worker is offline.
 
+On Apple Silicon, keep the worker on the same Mac using the [local ARM64 VM setup](../docs/macos-worker.md).
+
 From the repository root:
 
 ```sh

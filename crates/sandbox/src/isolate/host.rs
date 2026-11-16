@@ -29,7 +29,9 @@ const COMMAND_BUDGET: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Error)]
 pub enum HostError {
-    #[error("Isolate requires a non-root Debian 13 amd64 worker with the Linux 6.12 profile")]
+    #[error(
+        "Isolate requires a non-root Debian 13 amd64 or arm64 worker with the Linux 6.12 profile"
+    )]
     Platform,
     #[error("the required Isolate 2.7 package or configuration is unavailable")]
     Isolate,
@@ -38,7 +40,7 @@ pub enum HostError {
     )]
     Cgroups,
     #[error(
-        "the dedicated quota-enabled sandbox tmpfs or required kernel settings are unavailable"
+        "the dedicated quota-enabled sandbox workspace or required kernel settings are unavailable"
     )]
     Workspace,
     #[error("create /var/lib/ferrum-sandbox as the worker account with mode 0700")]
@@ -120,26 +122,7 @@ impl Host {
             return Err(HostError::Cgroups);
         }
 
-        let mount = host_text(
-            "/usr/bin/findmnt",
-            &[
-                "--noheadings",
-                "--target",
-                "/var/lib/isolate",
-                "--output",
-                "TARGET,FSTYPE,OPTIONS",
-            ],
-        )
-        .ok_or(HostError::Workspace)?;
-        let mut columns = mount.split_ascii_whitespace();
-        if columns.next() != Some("/var/lib/isolate")
-            || columns.next() != Some("tmpfs")
-            || !columns.next().is_some_and(|options| {
-                let options = options.split(',').collect::<Vec<_>>();
-                (options.contains(&"usrquota") || options.contains(&"quota"))
-                    && options.contains(&"nodev")
-                    && options.contains(&"nosuid")
-            })
+        if !valid_workspace_mount()
             || !read_text("/proc/swaps").is_ok_and(|value| value.lines().count() == 1)
             || !read_text("/proc/sys/fs/protected_hardlinks").is_ok_and(|value| value.trim() == "1")
             || !read_text("/proc/sys/kernel/core_pattern")
@@ -396,6 +379,79 @@ fn host_text(program: &str, args: &[&str]) -> Option<String> {
     String::from_utf8(output.stdout).ok()
 }
 
+fn mount_details(path: &str) -> Option<String> {
+    host_text(
+        "/usr/bin/findmnt",
+        &[
+            "--noheadings",
+            "--mountpoint",
+            path,
+            "--output",
+            "SOURCE,FSTYPE,OPTIONS",
+        ],
+    )
+}
+
+fn valid_workspace_mount() -> bool {
+    let Some(mount) = mount_details("/var/lib/isolate") else {
+        return false;
+    };
+    let mut columns = mount.split_ascii_whitespace();
+    let (Some(source), Some(kind), Some(options)) =
+        (columns.next(), columns.next(), columns.next())
+    else {
+        return false;
+    };
+    let options = options.split(',').collect::<Vec<_>>();
+    if !(options.contains(&"nodev") && options.contains(&"nosuid")) {
+        return false;
+    }
+    match kind {
+        "tmpfs" => options.contains(&"usrquota") || options.contains(&"quota"),
+        #[cfg(target_arch = "aarch64")]
+        "ext4" => options.contains(&"usrquota") && valid_memory_backing(source),
+        _ => {
+            let _ = source;
+            false
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+fn valid_memory_backing(source: &str) -> bool {
+    const BACKING_MOUNT: &str = "/run/ferrum-workspace";
+    const BACKING_FILE: &str = "/run/ferrum-workspace/isolate.ext4";
+    let Some(loop_id) = source.strip_prefix("/dev/loop") else {
+        return false;
+    };
+    if loop_id.is_empty() || !loop_id.bytes().all(|byte| byte.is_ascii_digit()) {
+        return false;
+    }
+    if !read_text(format!("/sys/block/loop{loop_id}/loop/backing_file"))
+        .is_ok_and(|name| name.trim() == BACKING_FILE)
+        || !fs::symlink_metadata(BACKING_FILE).is_ok_and(|metadata| {
+            metadata.is_file()
+                && metadata.uid() == 0
+                && metadata.mode() & 0o777 == 0o600
+                && metadata.nlink() == 1
+                && metadata.len() == 256 * 1024 * 1024
+        })
+    {
+        return false;
+    }
+    mount_details(BACKING_MOUNT).is_some_and(|mount| {
+        let mut columns = mount.split_ascii_whitespace();
+        let _ = columns.next();
+        columns.next() == Some("tmpfs")
+            && columns.next().is_some_and(|options| {
+                let options = options.split(',').collect::<Vec<_>>();
+                ["size=262144k", "nodev", "nosuid", "noexec"]
+                    .iter()
+                    .all(|option| options.contains(option))
+            })
+    })
+}
+
 fn read_text(path: impl AsRef<Path>) -> io::Result<String> {
     String::from_utf8(read_bounded(path, CONTROL_LIMIT)?).map_err(io::Error::other)
 }
@@ -455,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires the dedicated Debian 13 amd64 Isolate 2.7 host"]
+    #[ignore = "requires the dedicated Debian 13 amd64 or arm64 Isolate 2.7 host"]
     fn retains_and_reconciles_a_failed_cleanup() {
         let mut host = Host::open().expect("qualified Isolate host");
         host.begin().unwrap();

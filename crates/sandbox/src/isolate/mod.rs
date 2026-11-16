@@ -33,7 +33,15 @@ assert resource.getrlimit(resource.RLIMIT_NPROC) == (1, 1)
 assert resource.getrlimit(resource.RLIMIT_FSIZE) == (65536, 65536)
 assert resource.getrlimit(resource.RLIMIT_STACK) == (8388608, 8388608)
 assert resource.getrlimit(resource.RLIMIT_NOFILE) == (64, 64)
-assert set(os.environ) <= {"LC_CTYPE", "LIBC_FATAL_STDERR_"}
+expected_env = {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/box",
+    "TMPDIR": "/box",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+}
+assert all(os.environ.get(key) == value for key, value in expected_env.items())
+assert set(os.environ) - expected_env.keys() <= {"LC_CTYPE", "LIBC_FATAL_STDERR_"}
 assert [name for _, name in socket.if_nameindex()] == ["lo"]
 print(input())
 "#;
