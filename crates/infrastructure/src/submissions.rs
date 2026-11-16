@@ -351,8 +351,8 @@ impl SubmissionRepository for PostgresSubmissions {
 
         let row = sqlx::query_as::<_, SubmissionRow>(
             "INSERT INTO submissions
-                (organization_id, id, idempotency_key, language, runtime_profile, source, stdin, limits)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                (organization_id, id, idempotency_key, language, runtime_profile, source, stdin, limits, traceparent)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (organization_id, idempotency_key) DO NOTHING
              RETURNING id, state, verdict",
         )
@@ -364,6 +364,7 @@ impl SubmissionRepository for PostgresSubmissions {
         .bind(input.source())
         .bind(input.stdin())
         .bind(Json(input.limits()))
+        .bind(input.traceparent())
         .fetch_optional(&mut *transaction)
         .await
         .map_err(storage_error)?;
@@ -391,16 +392,18 @@ impl SubmissionRepository for PostgresSubmissions {
                 event_id: Uuid::new_v4(),
                 organization_id,
                 submission_id: row.id,
+                traceparent: input.traceparent().map(|s| s.to_string()),
             };
             sqlx::query(
-                "INSERT INTO outbox_events (id, organization_id, submission_id, event_type, event_version)
-                 VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO outbox_events (id, organization_id, submission_id, event_type, event_version, traceparent)
+                 VALUES ($1, $2, $3, $4, $5, $6)",
             )
             .bind(event.event_id)
             .bind(event.organization_id)
             .bind(event.submission_id)
             .bind(SubmissionCreated::EVENT_TYPE)
             .bind(SubmissionCreated::VERSION)
+            .bind(&event.traceparent)
             .execute(&mut *transaction)
             .await
             .map_err(storage_error)?;

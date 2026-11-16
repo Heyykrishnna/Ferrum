@@ -74,12 +74,7 @@ impl Fixture {
         .fetch_one(&self.pool)
         .await
         .unwrap();
-        ExecuteSubmission {
-            version: ExecuteSubmission::VERSION,
-            organization_id: self.organization_id,
-            submission_id,
-            attempt_id,
-        }
+        ExecuteSubmission::new(submission_id, self.organization_id, attempt_id)
     }
 }
 

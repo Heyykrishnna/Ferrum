@@ -37,6 +37,7 @@ pub struct SubmissionInput {
     stdin: String,
     limits: EffectiveLimits,
     cases: Vec<TestCase>,
+    traceparent: Option<String>,
 }
 
 #[derive(Debug, Error)]
@@ -132,7 +133,17 @@ impl SubmissionInput {
             stdin,
             limits,
             cases,
+            traceparent: None,
         })
+    }
+
+    pub fn with_traceparent(mut self, traceparent: Option<String>) -> Self {
+        self.traceparent = traceparent;
+        self
+    }
+
+    pub fn traceparent(&self) -> Option<&str> {
+        self.traceparent.as_deref()
     }
 
     pub fn from_persisted(

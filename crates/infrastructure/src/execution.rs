@@ -308,12 +308,7 @@ pub async fn recover_after_host_probe(
         let Some((organization_id, submission_id, attempt_id, number)) = previous else {
             break;
         };
-        let job = ExecuteSubmission {
-            version: ExecuteSubmission::VERSION,
-            organization_id,
-            submission_id,
-            attempt_id,
-        };
+        let job = ExecuteSubmission::new(submission_id, organization_id, attempt_id);
         finish_or_retry(
             &mut tx,
             &job,
@@ -384,12 +379,7 @@ pub async fn reconcile_stale_attempts(
         .map_err(execution_storage)?
         .unwrap_or(false);
 
-        let job = ExecuteSubmission {
-            version: ExecuteSubmission::VERSION,
-            organization_id,
-            submission_id,
-            attempt_id,
-        };
+        let job = ExecuteSubmission::new(submission_id, organization_id, attempt_id);
 
         let action = if cancel_requested {
             finish_or_retry(&mut tx, &job, ProcessingState::Cancelled, None, false).await?;

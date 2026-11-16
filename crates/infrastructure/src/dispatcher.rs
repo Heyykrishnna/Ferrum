@@ -17,6 +17,7 @@ struct OutboxEvent {
     organization_id: Uuid,
     submission_id: Uuid,
     event_type: String,
+    traceparent: Option<String>,
 }
 
 pub async fn setup_apalis(pool: &PgPool) -> Result<(), ExecutionError> {
@@ -38,7 +39,7 @@ pub fn execution_queue(pool: &PgPool) -> PostgresStorage<ExecuteSubmission> {
 pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
     let mut tx = pool.begin().await.map_err(execution_storage)?;
     let event = sqlx::query_as::<_, OutboxEvent>(
-        "SELECT id, organization_id, submission_id, event_type FROM outbox_events
+        "SELECT id, organization_id, submission_id, event_type, traceparent FROM outbox_events
          WHERE published_at IS NULL AND event_version = $1 AND event_type IN ($2, $3)
          ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED",
     )
@@ -66,7 +67,7 @@ pub async fn reconcile_stuck_outbox(
     loop {
         let mut tx = pool.begin().await.map_err(execution_storage)?;
         let event = sqlx::query_as::<_, OutboxEvent>(
-            "SELECT id, organization_id, submission_id, event_type FROM outbox_events
+            "SELECT id, organization_id, submission_id, event_type, traceparent FROM outbox_events
              WHERE published_at IS NULL AND created_at <= clock_timestamp() - ($1 * interval '1 millisecond')
              ORDER BY created_at ASC, id ASC
              LIMIT 1 FOR UPDATE SKIP LOCKED",
@@ -139,12 +140,10 @@ async fn publish_event_tx(
         .fetch_one(&mut **tx)
         .await
         .map_err(execution_storage)?;
-        let job = ExecuteSubmission {
-            version: ExecuteSubmission::VERSION,
-            organization_id: event.organization_id,
-            submission_id: event.submission_id,
-            attempt_id: event.id,
-        };
+        let mut job = ExecuteSubmission::new(event.submission_id, event.organization_id, event.id);
+        if let Some(traceparent) = &event.traceparent {
+            job = job.with_traceparent(traceparent);
+        }
         sqlx::query(
             "INSERT INTO execution_attempts (id, organization_id, submission_id, attempt_number, state)
              VALUES ($1, $2, $3, $4, 'queued')
