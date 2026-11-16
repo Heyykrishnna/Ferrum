@@ -147,21 +147,74 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
     }
 
     async fn execute(&self, job: &ExecuteSubmission) -> Result<(), ExecutionError> {
-        let Some(input) = claim_execution(&self.pool, job, self.owner).await? else {
-            return Ok(());
-        };
-        tracing::info!(event = "execution_claimed", submission_id = %job.submission_id, attempt_id = %job.attempt_id, worker_id = %self.owner.worker_id);
+        let trace_ctx = ferrum_domain::TraceContext::from_traceparent_or_generate(
+            job.traceparent.as_deref(),
+        );
+        let trace_id = trace_ctx.trace_id.as_str();
 
-        let Ok(input) = input.validate() else {
-            let result =
-                finalize_execution(&self.pool, job, self.owner, AttemptReport::InvalidInput).await;
-            if result.is_err() {
-                self.failure.cancel();
+        let span = tracing::info_span!(
+            "worker.execute",
+            trace_id,
+            submission_id = %job.submission_id,
+            attempt_id = %job.attempt_id,
+            worker_id = %self.owner.worker_id
+        );
+        let _span_guard = span.enter();
+
+        let metrics = ferrum_runtime::MetricsRegistry::global();
+        metrics.worker_active_executions.inc(&[]);
+        metrics.worker_capacity_reserved_slots.inc(&[]);
+
+        let admission_start = std::time::Instant::now();
+        let claim_res = claim_execution(&self.pool, job, self.owner).await;
+        metrics
+            .stage_duration_seconds
+            .observe(&[("stage", "admission")], admission_start.elapsed().as_secs_f64());
+
+        let input = match claim_res? {
+            Some(input) => input,
+            None => {
+                metrics.worker_active_executions.dec(&[]);
+                metrics.worker_capacity_reserved_slots.dec(&[]);
+                return Ok(());
             }
-            return result;
         };
+
+        tracing::info!(
+            event = "execution_claimed",
+            trace_id,
+            submission_id = %job.submission_id,
+            attempt_id = %job.attempt_id,
+            worker_id = %self.owner.worker_id
+        );
+
+        let validated_input = match input.validate() {
+            Ok(valid) => valid,
+            Err(_) => {
+                let persist_start = std::time::Instant::now();
+                let result = finalize_execution(
+                    &self.pool,
+                    job,
+                    self.owner,
+                    AttemptReport::InvalidInput,
+                )
+                .await;
+                metrics.stage_duration_seconds.observe(
+                    &[("stage", "persistence")],
+                    persist_start.elapsed().as_secs_f64(),
+                );
+                metrics.worker_active_executions.dec(&[]);
+                metrics.worker_capacity_reserved_slots.dec(&[]);
+                if result.is_err() {
+                    self.failure.cancel();
+                }
+                return result;
+            }
+        };
+
         let cancel = CancellationToken::new();
-        let execution = self.sandbox.execute(input, cancel.clone());
+        let exec_start = std::time::Instant::now();
+        let execution = self.sandbox.execute(validated_input, cancel.clone());
         tokio::pin!(execution);
         let mut heartbeat =
             tokio::time::interval_at(tokio::time::Instant::now() + HEARTBEAT, HEARTBEAT);
@@ -178,6 +231,7 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
                         Ok(false) => {
                             tracing::info!(
                                 event = "execution_cancellation_requested",
+                                trace_id,
                                 submission_id = %job.submission_id,
                                 attempt_id = %job.attempt_id
                             );
@@ -187,6 +241,8 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
                             cancel.cancel();
                             execution.await;
                             self.failure.cancel();
+                            metrics.worker_active_executions.dec(&[]);
+                            metrics.worker_capacity_reserved_slots.dec(&[]);
                             return Err(error);
                         }
                     }
@@ -194,13 +250,88 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
             }
         };
 
+        let exec_duration = exec_start.elapsed().as_secs_f64();
+        metrics
+            .stage_duration_seconds
+            .observe(&[("stage", "execute")], exec_duration);
+
+        match &report.cleanup {
+            CleanupDisposition::Verified => {
+                metrics
+                    .sandbox_cleanups_total
+                    .inc(&[("disposition", "verified")]);
+            }
+            CleanupDisposition::NotNeeded => {
+                metrics
+                    .sandbox_cleanups_total
+                    .inc(&[("disposition", "not_needed")]);
+            }
+            CleanupDisposition::Unresolved(_) => {
+                metrics
+                    .sandbox_cleanups_total
+                    .inc(&[("disposition", "unresolved")]);
+                metrics.sandbox_quarantines_total.inc(&[]);
+                metrics.worker_capacity_quarantined_slots.inc(&[]);
+            }
+        }
+
+        if let Ok(run) = &report.result {
+            if let Some(cpu) = run.facts.cpu_time_ms {
+                metrics.execution_cpu_time_ms.observe(&[], cpu as f64);
+            }
+            if let Some(wall) = run.facts.wall_time_ms {
+                metrics.execution_wall_time_ms.observe(&[], wall as f64);
+            }
+            if let Some(mem) = run.facts.peak_memory_kib {
+                metrics.execution_peak_memory_kib.observe(&[], mem as f64);
+            }
+            match run.outcome {
+                ferrum_sandbox::ProgramOutcome::CpuTimeLimit => {
+                    metrics
+                        .execution_limit_violations_total
+                        .inc(&[("limit_type", "cpu_time")]);
+                }
+                ferrum_sandbox::ProgramOutcome::WallTimeLimit => {
+                    metrics
+                        .execution_limit_violations_total
+                        .inc(&[("limit_type", "wall_time")]);
+                }
+                ferrum_sandbox::ProgramOutcome::MemoryLimit => {
+                    metrics
+                        .execution_limit_violations_total
+                        .inc(&[("limit_type", "memory")]);
+                }
+                ferrum_sandbox::ProgramOutcome::OutputLimit(ferrum_sandbox::OutputStream::Stdout) => {
+                    metrics
+                        .execution_limit_violations_total
+                        .inc(&[("limit_type", "stdout")]);
+                }
+                ferrum_sandbox::ProgramOutcome::OutputLimit(ferrum_sandbox::OutputStream::Stderr) => {
+                    metrics
+                        .execution_limit_violations_total
+                        .inc(&[("limit_type", "stderr")]);
+                }
+                _ => {}
+            }
+        }
+
         let blocked = matches!(report.cleanup, CleanupDisposition::Unresolved(_))
             || matches!(
                 report.result,
                 Err(SandboxError::RecoveryRequired | SandboxError::Busy)
             );
+
+        let persist_start = std::time::Instant::now();
         let result =
             finalize_execution(&self.pool, job, self.owner, AttemptReport::Sandbox(&report)).await;
+        metrics.stage_duration_seconds.observe(
+            &[("stage", "persistence")],
+            persist_start.elapsed().as_secs_f64(),
+        );
+
+        metrics.worker_active_executions.dec(&[]);
+        metrics.worker_capacity_reserved_slots.dec(&[]);
+
         if blocked || result.is_err() {
             self.failure.cancel();
         }
