@@ -454,6 +454,7 @@ name = "ferrum-domain"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "thiserror",
  "uuid",
 ]
@@ -470,11 +471,15 @@ dependencies = [
  "ferrum-domain",
  "ferrum-judge",
  "ferrum-sandbox",
+ "hex",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
+ "subtle",
  "thiserror",
  "tokio",
  "tracing",
+ "url",
  "uuid",
 ]
 

@@ -2,6 +2,7 @@ pub mod api_keys;
 pub mod dispatcher;
 pub mod execution;
 mod submissions;
+pub mod webhooks;
 
 use std::time::Duration;
 
@@ -23,6 +24,10 @@ pub use execution::{
     finalize_execution, recover_after_host_probe, renew_attempt_lease,
 };
 pub use submissions::PostgresSubmissions;
+pub use webhooks::{
+    WebhookError, create_webhook_endpoint, delete_webhook_endpoint, generate_webhook_secret,
+    list_webhook_endpoints, record_webhook_delivery, sign_webhook_payload, validate_webhook_url,
+};
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
