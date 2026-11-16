@@ -28,6 +28,17 @@ impl ProcessingState {
             _ => return None,
         })
     }
+
+    pub fn as_storage(self) -> &'static str {
+        match self {
+            Self::Created => "created",
+            Self::Queued => "queued",
+            Self::Processing => "processing",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -57,10 +68,36 @@ impl Verdict {
             _ => return None,
         })
     }
+
+    pub fn as_storage(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::WrongAnswer => "wrong_answer",
+            Self::CompilationError => "compilation_error",
+            Self::RuntimeError => "runtime_error",
+            Self::TimeLimitExceeded => "time_limit_exceeded",
+            Self::MemoryLimitExceeded => "memory_limit_exceeded",
+            Self::OutputLimitExceeded => "output_limit_exceeded",
+            Self::InternalError => "internal_error",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SubmissionResult {
+    pub outcome: String,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<u8>,
+    pub signal: Option<u8>,
+    pub cpu_time_ms: Option<u64>,
+    pub wall_time_ms: Option<u64>,
+    pub peak_memory_kib: Option<u64>,
 }
 
 pub struct Submission {
     pub id: Uuid,
     pub state: ProcessingState,
     pub verdict: Option<Verdict>,
+    pub result: Option<SubmissionResult>,
 }
