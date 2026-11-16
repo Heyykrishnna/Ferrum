@@ -5,7 +5,7 @@ use ferrum_config::DatabaseSettings;
 use ferrum_domain::{ProcessingState, SubmissionInput, Verdict};
 use ferrum_infrastructure::{PostgresSubmissions, connect, execution::recover_after_host_probe};
 use ferrum_sandbox::{
-    CleanupError, ExecutionFacts, ExecutionReport, ExecutionResult, ProgramOutcome,
+    CleanupError, ExecutionFacts, ExecutionReport, ExecutionResult, ProgramOutcome, StageResult,
 };
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -116,6 +116,7 @@ impl Sandbox for ControlledSandbox {
                     peak_memory_kib: Some(1024),
                     ..Default::default()
                 },
+                compilation: None,
             }),
             cleanup: self.cleanup,
         }
@@ -221,9 +222,15 @@ async fn postgres_apalis_dispatch_drain_and_redelivery() {
         assert_eq!(result.state, ProcessingState::Completed);
         assert_eq!(result.verdict, None);
         let result = result.result.unwrap();
-        assert_eq!(result.outcome, "success");
-        assert_eq!(result.stdout, "hello\n");
-        assert_eq!(result.peak_memory_kib, Some(1024));
+        assert_eq!(result.execution.outcome, "success");
+        assert_eq!(result.execution.stdout, "hello\n");
+        assert_eq!(result.execution.peak_memory_kib, Some(1024));
+        assert!(
+            serde_json::to_value(result)
+                .unwrap()
+                .get("compilation")
+                .is_none()
+        );
         assert!(
             reopened
                 .get(Uuid::new_v4(), submission)
@@ -256,6 +263,83 @@ async fn postgres_apalis_dispatch_drain_and_redelivery() {
     })
     .await
     .expect("pipeline test exceeded 35 seconds");
+}
+
+#[tokio::test]
+#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
+async fn postgres_compiler_outcomes_and_diagnostics_are_durable() {
+    let fixture = Fixture::new().await;
+    let owner = owner();
+    for (outcome, verdict) in [
+        (ProgramOutcome::CompilationError, Verdict::CompilationError),
+        (ProgramOutcome::CpuTimeLimit, Verdict::TimeLimitExceeded),
+    ] {
+        let input =
+            SubmissionInput::new("cpp", "int main() {}".into(), None, Default::default()).unwrap();
+        let submission = fixture
+            .repository
+            .create(
+                fixture.organization_id,
+                IdempotencyKey::parse(&Uuid::new_v4().to_string()).unwrap(),
+                input,
+            )
+            .await
+            .unwrap();
+        assert!(dispatch_execution(&fixture.pool).await.unwrap());
+        let job = fixture.latest_job(submission.id).await;
+        let claimed = claim_execution(&fixture.pool, &job, owner)
+            .await
+            .unwrap()
+            .unwrap()
+            .validate()
+            .unwrap();
+        assert_eq!(claimed.profile().revision, "gcc14-cpp20-v1");
+
+        let report = ExecutionReport {
+            result: Ok(ExecutionResult {
+                outcome,
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+                facts: ExecutionFacts::default(),
+                compilation: Some(StageResult {
+                    outcome,
+                    stdout: b"compiler output with NUL \0".to_vec(),
+                    stderr: b"bounded compiler diagnostics".to_vec(),
+                    facts: ExecutionFacts {
+                        cpu_time_ms: Some(12),
+                        ..Default::default()
+                    },
+                }),
+            }),
+            cleanup: CleanupDisposition::Verified,
+        };
+        finalize_execution(&fixture.pool, &job, owner, AttemptReport::Sandbox(&report))
+            .await
+            .unwrap();
+        let fetched = fixture
+            .repository
+            .get(fixture.organization_id, submission.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched.state, ProcessingState::Completed);
+        assert_eq!(fetched.verdict, Some(verdict));
+        let result = serde_json::to_value(fetched.result.unwrap()).unwrap();
+        assert_eq!(result["outcome"], outcome.as_str());
+        assert_eq!(result["stdout"], "");
+        assert_eq!(result["exit_code"], serde_json::Value::Null);
+        assert_eq!(result["compilation"]["outcome"], outcome.as_str());
+        assert_eq!(
+            result["compilation"]["stdout"],
+            "compiler output with NUL \0"
+        );
+        assert_eq!(
+            result["compilation"]["stderr"],
+            "bounded compiler diagnostics"
+        );
+        assert_eq!(result["compilation"]["cpu_time_ms"], 12);
+        assert!(!dispatch_execution(&fixture.pool).await.unwrap());
+    }
 }
 
 #[tokio::test]
@@ -360,7 +444,7 @@ async fn postgres_expired_lease_retry_bound_and_cleanup_quarantine() {
         .unwrap();
     assert_eq!(current.state, ProcessingState::Completed);
     assert_eq!(current.verdict, Some(Verdict::TimeLimitExceeded));
-    assert_eq!(current.result.unwrap().outcome, "wall_time_limit");
+    assert_eq!(current.result.unwrap().execution.outcome, "wall_time_limit");
     assert!(!dispatch_execution(&fixture.pool).await.unwrap());
 
     let restarted = ExecutionOwner {

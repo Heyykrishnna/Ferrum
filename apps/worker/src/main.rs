@@ -63,7 +63,7 @@ async fn serve() -> Result<(), Failure> {
     let database = DatabaseSettings::load()?;
     let pool = connect(&database).await?;
     let schema_ready = sqlx::query_scalar::<_, bool>(
-        "SELECT to_regclass('execution_attempts') IS NOT NULL AND to_regclass('apalis.jobs') IS NOT NULL",
+        "SELECT to_regclass('execution_attempts') IS NOT NULL AND to_regclass('compilation_results') IS NOT NULL AND to_regclass('apalis.jobs') IS NOT NULL",
     )
     .fetch_one(&pool)
     .await
@@ -77,7 +77,7 @@ async fn serve() -> Result<(), Failure> {
     let stop = shutdown.token();
 
     shutdown.run(settings.process.shutdown_timeout, async move {
-        let sandbox = Isolate::open().await?;
+        let sandbox = Isolate::open_with_toolchains().await?;
         recover_after_host_probe(&pool, owner).await?;
         tracing::info!(event = "worker_started", mode = settings.process.mode.as_str(), worker_id = %owner.worker_id);
         pipeline::run(pool, owner, sandbox, stop).await?;
