@@ -31,7 +31,10 @@ rustc -Vv
 (
   set -e -o pipefail
   python3 -I -u tests/phase0/verify-isolate.py 2>&1 | tee /tmp/ferrum-phase0-isolate.log
-  cargo test --locked -p ferrum-sandbox -- --ignored --test-threads=1 --nocapture 2>&1 | tee /tmp/ferrum-phase3-isolate.log
+  (
+    cargo test --locked -p ferrum-sandbox --lib retains_and_reconciles_a_failed_cleanup -- --ignored --nocapture
+    cargo test --locked -p ferrum-sandbox --test linux_host verifies_the_real_isolate_adapter -- --ignored --nocapture
+  ) 2>&1 | tee /tmp/ferrum-phase3-isolate.log
 )
 ```
 

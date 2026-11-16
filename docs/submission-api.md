@@ -37,7 +37,7 @@ curl -i "http://127.0.0.1:8080/v1/submissions/$SUBMISSION_ID" \
 
 Set `SUBMISSION_ID` to the returned UUID. A successful create returns HTTP 202 with `Location: /v1/submissions/{id}`. A successful poll returns HTTP 200. Both bodies contain `id`, `state`, and `verdict`. Newly submitted records have state `created` and a null verdict. When it exists, the poll response includes `result` with `outcome`, `stdout`, `stderr`, `exit_code`, `signal`, `cpu_time_ms`, `wall_time_ms`, and `peak_memory_kib`. Unavailable measurements are null. The API displays output as UTF-8 with replacement for invalid sequences and PostgreSQL preserves the captured bytes. A successful unjudged execution has a null verdict. [Worker setup](phase4-worker.md)
 
-The JSON body allows `language` (currently `python`), `source` (1–65,536 UTF-8 bytes), optional `stdin` (up to 65,536 UTF-8 bytes), and optional `limits`. Source and stdin exclude NUL characters. The encoded JSON request is capped at 800 KiB. The optional limits are positive integers in the following units.
+The authenticated `GET /v1/languages` route lists the configured profile IDs, runtime limits and whether each profile compiles. The JSON body allows `language`, `source` (1–65,536 UTF-8 bytes), optional `stdin` (up to 65,536 UTF-8 bytes), and optional `limits`. Source and stdin exclude NUL characters. The encoded JSON request is capped at 800 KiB. The optional limits are positive integers and fall within the selected profile’s ceilings. For Python, the defaults and ceilings are below.
 
 | Field | Default and ceiling |
 |---|---:|
@@ -45,7 +45,7 @@ The JSON body allows `language` (currently `python`), `source` (1–65,536 UTF-8
 | `wall_time_ms` | 6,000 milliseconds, at least the effective CPU time |
 | `memory_kib` | 131,072 KiB |
 
-Ferrum resolves the runtime to `python3.13-v1` and persists the full effective policy. [Python policy](phase0-linux-worker.md#initial-python-policy-for-phase-3)
+Ferrum persists the resolved profile revision and effective runtime limits. Compiled submissions also return `result.compilation` with the same output and resource fields for the compiler. If compilation fails, the runtime output is empty and its measurements are null. [Language profiles](phase5-languages.md)
 
 Idempotency keys contain 1–128 ASCII letters, digits, or `-_.:`. A matching replay within the same tenant returns the same ID and its current state. Equality uses the exact UTF-8 source and stdin after JSON decoding, the resolved runtime profile, and the effective limits. Omitted or null stdin equals an empty string. Omitted limit fields equal their defaults. Whitespace and line endings in input strings stay significant.
 

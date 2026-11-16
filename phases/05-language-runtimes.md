@@ -26,7 +26,10 @@ Support Python, C++, JavaScript through Node.js, C, Java and Rust through one va
 
 - [ ] Each advertised profile passes execution, stdin/stdout, runtime error and resource-limit tests on supported Linux.
 - [ ] Each compiled profile handles compiler failure and timeout and skips run when compilation fails.
-- [ ] Executables and arguments resolve from trusted configuration, and compile/run remain inside Isolate.
-- [ ] If multi-file support ships, invalid paths and oversized or duplicate files are rejected before staging.
+- [x] Each profile resolves its executables, arguments and limits from the trusted registry. The Debian toolchain fixtures verify the configured command plans.
+- [ ] The real-host matrix verifies that both compile and run work within Isolate.
+Multi-file intake is deferred until the six single-file profiles pass the supported-host matrix.
+
+The Debian amd64 Docker workspace, Clippy and toolchain checks passed for all six profiles. The disposable PostgreSQL 17 and Apalis suite passed, including separate durable compilation diagnostics. The host-gated matrix and compiler deadline tests still require a qualified Debian 13 amd64 worker. [Verification commands](../docs/phase5-languages.md)
 
 **Handoff** · Expose validated execution facts and language profiles to judging. [Phase 6](06-judging-engine.md)
