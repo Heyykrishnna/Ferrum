@@ -51,6 +51,8 @@ pub enum HostError {
     Recovery(CleanupError),
     #[error("Isolate failed the startup execution probe")]
     Probe,
+    #[error("missing or incompatible Debian toolchain for {0}")]
+    Toolchain(&'static str),
     #[error("the startup supervisor failed")]
     Supervisor,
 }

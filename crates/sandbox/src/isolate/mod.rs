@@ -1,32 +1,25 @@
 mod host;
 mod process;
+mod stages;
 
 pub use host::HostError;
 
-use std::{
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    os::unix::fs::{MetadataExt, OpenOptionsExt},
-    path::Path,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Duration,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
+use std::time::Duration;
 
-use ferrum_domain::{RequestedLimits, SubmissionInput};
-use rustix::process::geteuid;
+use ferrum_domain::{LANGUAGES, RequestedLimits, SubmissionInput};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    CleanupDisposition, CleanupError, ExecutionFacts, ExecutionReport, ExecutionResult,
-    ProgramOutcome, Sandbox, SandboxError, metadata::Metadata,
+    CleanupDisposition, CleanupError, ExecutionReport, ExecutionResult, ProgramOutcome, Sandbox,
+    SandboxError,
 };
-use host::{Host, ISOLATE, WORKSPACE, read_bounded};
-use process::{ProcessError, Stop, capture, command};
-
-const META_LIMIT: usize = 8192;
+use host::Host;
+use process::{capture, command};
+use stages::{cancelled, run_in_box};
 const STARTUP_PROBE: &str = r#"
 import os
 import resource
@@ -73,7 +66,7 @@ impl Isolate {
                 blocked: AtomicBool::new(false),
             };
             let probe = SubmissionInput::new(
-                SubmissionInput::LANGUAGE,
+                "python",
                 STARTUP_PROBE.to_owned(),
                 Some("ferrum-ready\n".to_owned()),
                 RequestedLimits::default(),
@@ -96,6 +89,34 @@ impl Isolate {
             Ok(Self {
                 inner: Arc::new(inner),
             })
+        })
+        .await
+        .map_err(|_| HostError::Supervisor)?
+    }
+    pub async fn open_with_toolchains() -> Result<Self, HostError> {
+        let sandbox = Self::open().await?;
+        tokio::task::spawn_blocking(move || {
+            for profile in LANGUAGES {
+                let toolchain = &profile.toolchain;
+                let mut probe = command(toolchain.program);
+                probe.args(toolchain.version_args);
+                let output = capture(
+                    &mut probe,
+                    Duration::from_secs(3),
+                    4096,
+                    4096,
+                    &CancellationToken::new(),
+                )
+                .map_err(|_| HostError::Toolchain(profile.language))?;
+                let matches_version = [output.stdout.as_slice(), output.stderr.as_slice()]
+                    .into_iter()
+                    .filter_map(|bytes| std::str::from_utf8(bytes).ok())
+                    .any(|text| text.trim().starts_with(toolchain.version_prefix));
+                if !output.status.success() || output.stop.is_some() || !matches_version {
+                    return Err(HostError::Toolchain(profile.language));
+                }
+            }
+            Ok(sandbox)
         })
         .await
         .map_err(|_| HostError::Supervisor)?
@@ -146,7 +167,7 @@ impl Inner {
             );
         }
 
-        let (result, may_cleanup) = self.run_in_box(input, cancellation);
+        let (result, may_cleanup) = run_in_box(&self.host, input, cancellation);
         let cleanup = if may_cleanup {
             self.host
                 .cleanup()
@@ -161,146 +182,6 @@ impl Inner {
         }
         report(result, cleanup)
     }
-
-    fn run_in_box(
-        &self,
-        input: SubmissionInput,
-        cancellation: &CancellationToken,
-    ) -> (Result<ExecutionResult, SandboxError>, bool) {
-        let limits = input.limits();
-        let quota = format!(
-            "--quota={},{}",
-            limits.workspace_kib, limits.workspace_inodes
-        );
-        if let Err(error) = self.host.initialize(quota) {
-            return (
-                Err(SandboxError::Initialize),
-                !matches!(error, ProcessError::Unreaped),
-            );
-        }
-        if stage(&input).is_err() {
-            return (Err(SandboxError::Stage), true);
-        }
-        if cancellation.is_cancelled() {
-            return (Ok(cancelled()), true);
-        }
-        let metadata_path = self.host.metadata_path();
-        if OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&metadata_path)
-            .is_err()
-        {
-            return (Err(SandboxError::Stage), true);
-        }
-
-        let mut cmd = command(ISOLATE);
-        cmd.args([
-            "--cg",
-            "--box-id=0",
-            "-s",
-            "--core=0",
-            "--syscalls=65535",
-            "--no-default-dirs",
-            "--dir=/box=./box:rw:noexec",
-            "--dir=/usr:norec",
-            "--dir=/lib:norec",
-            "--dir=/lib64:norec",
-            "--dir=/proc=proc:fs",
-            "--stdin=/box/input",
-        ])
-        .arg(format!("--meta={}", metadata_path.display()))
-        .arg(format!("--time={}", seconds(limits.cpu_time_ms)))
-        .arg(format!("--wall-time={}", seconds(limits.wall_time_ms)))
-        .arg(format!("--cg-mem={}", limits.memory_kib))
-        .arg(format!("--processes={}", limits.processes))
-        .arg(format!("--open-files={}", limits.open_files))
-        .arg(format!("--stack={}", limits.stack_kib))
-        .arg(format!("--fsize={}", limits.file_bytes / 1024))
-        .args([
-            "--run",
-            "--",
-            "/usr/bin/python3",
-            "-I",
-            "-B",
-            "/box/main.py",
-        ]);
-
-        let captured = match capture(
-            &mut cmd,
-            Duration::from_millis(u64::from(limits.wall_time_ms)) + Duration::from_secs(2),
-            limits.stdout_bytes as usize,
-            limits.stderr_bytes as usize,
-            cancellation,
-        ) {
-            Ok(captured) => captured,
-            Err(error) => {
-                return (
-                    Err(SandboxError::Supervisor),
-                    !matches!(error, ProcessError::Unreaped),
-                );
-            }
-        };
-
-        if !self.host.unpopulated() || matches!(captured.stop, Some(Stop::Deadline)) {
-            return (Err(SandboxError::Supervisor), true);
-        }
-
-        let bytes = read_bounded(metadata_path, META_LIMIT);
-        let metadata = bytes
-            .as_deref()
-            .map_err(|_| SandboxError::Metadata)
-            .and_then(Metadata::parse);
-        let result = if captured.status.code().is_some_and(|code| code >= 2)
-            || metadata.as_ref().is_ok_and(Metadata::supervisor_failed)
-        {
-            Err(SandboxError::Supervisor)
-        } else if let Some(stop) = captured.stop {
-            let outcome = match stop {
-                Stop::Cancelled => Ok(ProgramOutcome::Cancelled),
-                Stop::Output(stream) => Ok(ProgramOutcome::OutputLimit(stream)),
-                Stop::Deadline => Err(SandboxError::Supervisor),
-            };
-            outcome.map(|outcome| ExecutionResult {
-                outcome,
-                stdout: captured.stdout,
-                stderr: captured.stderr,
-                facts: metadata.map(|value| value.facts).unwrap_or_default(),
-            })
-        } else {
-            metadata.and_then(|metadata| {
-                Ok(ExecutionResult {
-                    outcome: metadata.outcome(captured.status.code())?,
-                    stdout: captured.stdout,
-                    stderr: captured.stderr,
-                    facts: metadata.facts,
-                })
-            })
-        };
-        (result, true)
-    }
-}
-
-fn stage(input: &SubmissionInput) -> io::Result<()> {
-    let workspace = Path::new(WORKSPACE).join("box");
-    let metadata = fs::symlink_metadata(&workspace)?;
-    if !metadata.is_dir() || metadata.uid() != geteuid().as_raw() || metadata.mode() & 0o022 != 0 {
-        return Err(io::Error::other("invalid Isolate staging directory"));
-    }
-    for (name, data) in [("main.py", input.source()), ("input", input.stdin())] {
-        OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(workspace.join(name))?
-            .write_all(data.as_bytes())?;
-    }
-    Ok(())
-}
-
-fn seconds(milliseconds: u32) -> String {
-    format!("{}.{:03}", milliseconds / 1000, milliseconds % 1000)
 }
 
 fn report(
@@ -308,13 +189,4 @@ fn report(
     cleanup: CleanupDisposition,
 ) -> ExecutionReport {
     ExecutionReport { result, cleanup }
-}
-
-fn cancelled() -> ExecutionResult {
-    ExecutionResult {
-        outcome: ProgramOutcome::Cancelled,
-        stdout: Vec::new(),
-        stderr: Vec::new(),
-        facts: ExecutionFacts::default(),
-    }
 }
