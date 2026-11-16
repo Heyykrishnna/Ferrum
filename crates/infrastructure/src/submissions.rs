@@ -1,6 +1,6 @@
 use ferrum_application::{IdempotencyKey, SubmissionError, SubmissionRepository};
 use ferrum_contracts::SubmissionCreated;
-use ferrum_domain::{ProcessingState, Submission, SubmissionInput, Verdict};
+use ferrum_domain::{ProcessingState, Submission, SubmissionInput, SubmissionResult, Verdict};
 use sqlx::{PgPool, types::Json};
 use uuid::Uuid;
 
@@ -30,6 +30,49 @@ impl SubmissionRow {
             id: self.id,
             state,
             verdict,
+            result: None,
+        })
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct SubmissionDetailRow {
+    id: Uuid,
+    state: String,
+    verdict: Option<String>,
+    outcome: Option<String>,
+    stdout: Option<Vec<u8>>,
+    stderr: Option<Vec<u8>>,
+    exit_code: Option<i16>,
+    signal: Option<i16>,
+    cpu_time_ms: Option<i64>,
+    wall_time_ms: Option<i64>,
+    peak_memory_kib: Option<i64>,
+}
+
+impl SubmissionDetailRow {
+    fn into_domain(self) -> Result<Submission, SubmissionError> {
+        let state = ProcessingState::from_storage(&self.state).ok_or(SubmissionError::Storage)?;
+        let verdict = self
+            .verdict
+            .as_deref()
+            .map(|verdict| Verdict::from_storage(verdict).ok_or(SubmissionError::Storage))
+            .transpose()?;
+        let result = self.outcome.map(|outcome| SubmissionResult {
+            outcome,
+            stdout: String::from_utf8_lossy(&self.stdout.unwrap_or_default()).into_owned(),
+            stderr: String::from_utf8_lossy(&self.stderr.unwrap_or_default()).into_owned(),
+            exit_code: self.exit_code.and_then(|c| u8::try_from(c).ok()),
+            signal: self.signal.and_then(|s| u8::try_from(s).ok()),
+            cpu_time_ms: self.cpu_time_ms.and_then(|t| u64::try_from(t).ok()),
+            wall_time_ms: self.wall_time_ms.and_then(|t| u64::try_from(t).ok()),
+            peak_memory_kib: self.peak_memory_kib.and_then(|m| u64::try_from(m).ok()),
+        });
+        Ok(Submission {
+            id: self.id,
+            state,
+            verdict,
+            result,
         })
     }
 }
@@ -133,15 +176,30 @@ impl SubmissionRepository for PostgresSubmissions {
         organization_id: Uuid,
         submission_id: Uuid,
     ) -> Result<Option<Submission>, SubmissionError> {
-        sqlx::query_as::<_, SubmissionRow>(
-            "SELECT id, state, verdict FROM submissions WHERE organization_id = $1 AND id = $2",
+        sqlx::query_as::<_, SubmissionDetailRow>(
+            "SELECT
+                s.id,
+                s.state,
+                s.verdict,
+                r.outcome,
+                r.stdout,
+                r.stderr,
+                r.exit_code,
+                r.signal,
+                r.cpu_time_ms,
+                r.wall_time_ms,
+                r.peak_memory_kib
+             FROM submissions s
+             LEFT JOIN execution_results r
+                ON (r.organization_id, r.submission_id) = (s.organization_id, s.id)
+             WHERE s.organization_id = $1 AND s.id = $2",
         )
         .bind(organization_id)
         .bind(submission_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(storage_error)?
-        .map(SubmissionRow::into_domain)
+        .map(SubmissionDetailRow::into_domain)
         .transpose()
     }
 }
