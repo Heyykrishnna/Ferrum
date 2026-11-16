@@ -1,7 +1,7 @@
 use ferrum_contracts::{ExecuteSubmission, SubmissionCompleted, SubmissionCreated};
 use ferrum_domain::{
-    ComparisonMode, EffectiveLimits, ProcessingState, SubmissionInput, TestCase, ValidationError,
-    Verdict,
+    ComparisonMode, EffectiveLimits, ProcessingState, ReconciledAttempt, StaleAttemptAction,
+    SubmissionInput, TestCase, ValidationError, Verdict,
 };
 use ferrum_sandbox::{
     CleanupDisposition, ExecutionReport, ExecutionResult, ProgramOutcome, SandboxError,
@@ -341,6 +341,105 @@ pub async fn recover_after_host_probe(
         );
     }
     Ok(())
+}
+
+pub async fn reconcile_stale_attempts(
+    pool: &PgPool,
+) -> Result<Vec<ReconciledAttempt>, ExecutionError> {
+    let mut reconciled = Vec::new();
+    loop {
+        let mut tx = pool.begin().await.map_err(execution_storage)?;
+        let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, i32)>(
+            "SELECT a.organization_id, a.submission_id, a.id, a.attempt_number
+             FROM execution_attempts a
+             WHERE a.state = 'running' AND a.lease_expires_at <= clock_timestamp()
+             ORDER BY a.lease_expires_at ASC
+             LIMIT 1 FOR UPDATE SKIP LOCKED",
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(execution_storage)?;
+
+        let Some((organization_id, submission_id, attempt_id, attempt_number)) = row else {
+            break;
+        };
+
+        sqlx::query(
+            "UPDATE execution_attempts
+             SET state = 'failed', failure_reason = 'lease_expired', completed_at = now()
+             WHERE id = $1",
+        )
+        .bind(attempt_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(execution_storage)?;
+
+        let cancel_requested = sqlx::query_scalar::<_, bool>(
+            "SELECT cancel_requested FROM submissions WHERE organization_id = $1 AND id = $2",
+        )
+        .bind(organization_id)
+        .bind(submission_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(execution_storage)?
+        .unwrap_or(false);
+
+        let job = ExecuteSubmission {
+            version: ExecuteSubmission::VERSION,
+            organization_id,
+            submission_id,
+            attempt_id,
+        };
+
+        let action = if cancel_requested {
+            finish_or_retry(&mut tx, &job, ProcessingState::Cancelled, None, false).await?;
+            StaleAttemptAction::MarkedFailed
+        } else if attempt_number < MAX_ATTEMPTS {
+            finish_or_retry(
+                &mut tx,
+                &job,
+                ProcessingState::Failed,
+                Some(Verdict::InternalError),
+                true,
+            )
+            .await?;
+            StaleAttemptAction::Requeued
+        } else {
+            finish_or_retry(
+                &mut tx,
+                &job,
+                ProcessingState::Failed,
+                Some(Verdict::InternalError),
+                false,
+            )
+            .await?;
+            StaleAttemptAction::MarkedFailed
+        };
+
+        tx.commit().await.map_err(execution_storage)?;
+
+        tracing::warn!(
+            event = "stale_attempt_reconciled",
+            %organization_id,
+            %submission_id,
+            %attempt_id,
+            attempt_number,
+            action = action.as_str()
+        );
+
+        reconciled.push(ReconciledAttempt {
+            submission_id,
+            attempt_id,
+            action,
+            attempt_number: attempt_number.max(0) as u32,
+        });
+
+        if reconciled.len() >= 100 {
+            break;
+        }
+    }
+
+    Ok(reconciled)
 }
 
 async fn set_submission_state(
