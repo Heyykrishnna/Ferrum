@@ -6,12 +6,16 @@ use std::{
     time::Duration,
 };
 
-use ferrum_domain::{CommandPlan, CompilationPlan, EffectiveLimits, SubmissionInput};
+use ferrum_domain::{
+    CaseFinding, CommandPlan, CompilationPlan, EffectiveLimits, SubmissionInput, TestCase, Verdict,
+};
+use ferrum_judge::{CaseExecution, evaluate_suite};
 use rustix::process::geteuid;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    ExecutionFacts, ExecutionResult, ProgramOutcome, SandboxError, StageResult, metadata::Metadata,
+    ExecutionFacts, ExecutionResult, OutputStream, ProgramOutcome, SandboxError, StageResult,
+    metadata::Metadata,
 };
 
 use super::{
@@ -75,7 +79,15 @@ fn run_stages(
                 .extend_from_slice(&message[..message.len().min(remaining)]);
         }
         if compiled.outcome != ProgramOutcome::Success {
-            return Ok(skipped(compiled.outcome, Some(compiled)));
+            if input.cases().is_empty() {
+                return Ok(skipped(compiled.outcome, Some(compiled)));
+            } else {
+                return Ok(skipped_cases(
+                    compiled.outcome,
+                    Some(compiled),
+                    input.cases(),
+                ));
+            }
         }
         compilation = Some(compiled);
         if cancellation.is_cancelled() {
@@ -84,19 +96,88 @@ fn run_stages(
         fs::remove_file(host.metadata_path()).map_err(|_| (SandboxError::Stage, true))?;
     }
 
-    stage_file("input", input.stdin()).map_err(|_| (SandboxError::Stage, true))?;
-    let runtime = run_stage(host, &profile.run, limits, true, cancellation)?;
-    let mut facts = runtime.facts;
-    if compilation.is_some() {
-        facts.peak_memory_kib = None;
+    if input.cases().is_empty() {
+        stage_file("input", input.stdin()).map_err(|_| (SandboxError::Stage, true))?;
+        let runtime = run_stage(host, &profile.run, limits, true, cancellation)?;
+        let mut facts = runtime.facts;
+        if compilation.is_some() {
+            facts.peak_memory_kib = None;
+        }
+        Ok(ExecutionResult {
+            outcome: runtime.outcome,
+            stdout: runtime.stdout,
+            stderr: runtime.stderr,
+            facts,
+            compilation,
+            cases: None,
+            score: None,
+            max_score: None,
+        })
+    } else {
+        let mut executions = Vec::with_capacity(input.cases().len());
+        let mut last_stdout = Vec::new();
+        let mut last_stderr = Vec::new();
+        let mut last_facts = ExecutionFacts::default();
+        for case in input.cases() {
+            if cancellation.is_cancelled() {
+                break;
+            }
+            let _ = fs::remove_file(Path::new(WORKSPACE).join("box/input"));
+            stage_file("input", &case.input).map_err(|_| (SandboxError::Stage, true))?;
+            let runtime = run_stage(host, &profile.run, limits, true, cancellation)?;
+            let mut facts = runtime.facts;
+            if compilation.is_some() {
+                facts.peak_memory_kib = None;
+            }
+            let success = runtime.outcome == ProgramOutcome::Success;
+            let failure_verdict = match runtime.outcome {
+                ProgramOutcome::Success => None,
+                ProgramOutcome::CompilationError => Some(Verdict::CompilationError),
+                ProgramOutcome::RuntimeError => Some(Verdict::RuntimeError),
+                ProgramOutcome::CpuTimeLimit | ProgramOutcome::WallTimeLimit => {
+                    Some(Verdict::TimeLimitExceeded)
+                }
+                ProgramOutcome::MemoryLimit => Some(Verdict::MemoryLimitExceeded),
+                ProgramOutcome::OutputLimit(_) => Some(Verdict::OutputLimitExceeded),
+                ProgramOutcome::Cancelled => Some(Verdict::InternalError),
+            };
+            executions.push(CaseExecution {
+                success,
+                failure_verdict,
+                stdout: runtime.stdout.clone(),
+                stderr: runtime.stderr.clone(),
+                exit_code: facts.exit_code,
+                signal: facts.signal,
+                cpu_time_ms: facts.cpu_time_ms,
+                wall_time_ms: facts.wall_time_ms,
+                peak_memory_kib: facts.peak_memory_kib,
+            });
+            last_stdout = runtime.stdout;
+            last_stderr = runtime.stderr;
+            last_facts = facts;
+        }
+        let report = evaluate_suite(input.cases(), &executions);
+        let overall_outcome = match report.verdict {
+            Verdict::Accepted => ProgramOutcome::Success,
+            Verdict::WrongAnswer => ProgramOutcome::RuntimeError,
+            Verdict::CompilationError => ProgramOutcome::CompilationError,
+            Verdict::RuntimeError => ProgramOutcome::RuntimeError,
+            Verdict::TimeLimitExceeded => ProgramOutcome::WallTimeLimit,
+            Verdict::MemoryLimitExceeded => ProgramOutcome::MemoryLimit,
+            Verdict::OutputLimitExceeded => ProgramOutcome::OutputLimit(OutputStream::Stdout),
+            Verdict::InternalError => ProgramOutcome::RuntimeError,
+        };
+        Ok(ExecutionResult {
+            outcome: overall_outcome,
+            stdout: last_stdout,
+            stderr: last_stderr,
+            facts: last_facts,
+            compilation,
+            cases: Some(report.cases),
+            score: Some(report.score),
+            max_score: Some(report.max_score),
+        })
     }
-    Ok(ExecutionResult {
-        outcome: runtime.outcome,
-        stdout: runtime.stdout,
-        stderr: runtime.stderr,
-        facts,
-        compilation,
-    })
 }
 
 fn run_stage(
@@ -245,6 +326,40 @@ fn skipped(outcome: ProgramOutcome, compilation: Option<StageResult>) -> Executi
         stderr: Vec::new(),
         facts: ExecutionFacts::default(),
         compilation,
+        cases: None,
+        score: None,
+        max_score: None,
+    }
+}
+
+fn skipped_cases(
+    outcome: ProgramOutcome,
+    compilation: Option<StageResult>,
+    cases: &[TestCase],
+) -> ExecutionResult {
+    let case_findings = cases
+        .iter()
+        .map(|case| {
+            CaseFinding::hidden(
+                case.index,
+                Verdict::CompilationError,
+                0,
+                case.weight,
+                None,
+                None,
+                None,
+            )
+        })
+        .collect();
+    ExecutionResult {
+        outcome,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+        facts: ExecutionFacts::default(),
+        compilation,
+        cases: Some(case_findings),
+        score: Some(0),
+        max_score: Some(cases.iter().map(|c| c.weight).sum()),
     }
 }
 

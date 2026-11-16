@@ -29,6 +29,9 @@ pub struct ExecutionResult {
     pub stderr: Vec<u8>,
     pub facts: ExecutionFacts,
     pub compilation: Option<StageResult>,
+    pub cases: Option<Vec<ferrum_domain::CaseFinding>>,
+    pub score: Option<u32>,
+    pub max_score: Option<u32>,
 }
 
 pub struct StageResult {
