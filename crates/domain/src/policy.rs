@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::languages::{LanguageProfile, resolve_language, resolve_revision};
+use crate::{
+    TestCase,
+    languages::{LanguageProfile, resolve_language, resolve_revision},
+};
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
 
@@ -33,6 +36,7 @@ pub struct SubmissionInput {
     source: String,
     stdin: String,
     limits: EffectiveLimits,
+    cases: Vec<TestCase>,
 }
 
 #[derive(Debug, Error)]
@@ -47,6 +51,10 @@ pub enum ValidationError {
     Stdin,
     #[error("limits exceed the selected language policy or wall time is below CPU time")]
     Limits,
+    #[error(
+        "test case inputs and expected outputs must contain at most 65536 UTF-8 bytes and no NUL characters"
+    )]
+    TestCase,
 }
 
 impl SubmissionInput {
@@ -57,13 +65,35 @@ impl SubmissionInput {
         requested: RequestedLimits,
     ) -> Result<Self, ValidationError> {
         let profile = resolve_language(language).ok_or(ValidationError::Language)?;
-        Self::with_profile(profile, source, stdin, requested)
+        Self::with_profile_and_cases(profile, source, stdin, Vec::new(), requested)
     }
 
-    fn with_profile(
+    pub fn with_cases(
+        language: &str,
+        source: String,
+        cases: Vec<TestCase>,
+        requested: RequestedLimits,
+    ) -> Result<Self, ValidationError> {
+        Self::with_stdin_and_cases(language, source, None, cases, requested)
+    }
+
+    pub fn with_stdin_and_cases(
+        language: &str,
+        source: String,
+        stdin: Option<String>,
+        cases: Vec<TestCase>,
+        requested: RequestedLimits,
+    ) -> Result<Self, ValidationError> {
+        let profile = resolve_language(language).ok_or(ValidationError::Language)?;
+        let stdin = stdin.or_else(|| cases.first().map(|c| c.input.clone()));
+        Self::with_profile_and_cases(profile, source, stdin, cases, requested)
+    }
+
+    fn with_profile_and_cases(
         profile: &'static LanguageProfile,
         source: String,
         stdin: Option<String>,
+        cases: Vec<TestCase>,
         requested: RequestedLimits,
     ) -> Result<Self, ValidationError> {
         if source.is_empty() || source.len() > MAX_INPUT_BYTES || source.contains('\0') {
@@ -72,6 +102,15 @@ impl SubmissionInput {
         let stdin = stdin.unwrap_or_default();
         if stdin.len() > MAX_INPUT_BYTES || stdin.contains('\0') {
             return Err(ValidationError::Stdin);
+        }
+        for case in &cases {
+            if case.input.len() > MAX_INPUT_BYTES
+                || case.input.contains('\0')
+                || case.expected_output.len() > MAX_INPUT_BYTES
+                || case.expected_output.contains('\0')
+            {
+                return Err(ValidationError::TestCase);
+            }
         }
         let ceilings = &profile.run_limits;
         let limits = EffectiveLimits {
@@ -92,6 +131,7 @@ impl SubmissionInput {
             source,
             stdin,
             limits,
+            cases,
         })
     }
 
@@ -102,14 +142,26 @@ impl SubmissionInput {
         stdin: String,
         limits: EffectiveLimits,
     ) -> Result<Self, ValidationError> {
+        Self::from_persisted_with_cases(language, revision, source, stdin, limits, Vec::new())
+    }
+
+    pub fn from_persisted_with_cases(
+        language: &str,
+        revision: &str,
+        source: String,
+        stdin: String,
+        limits: EffectiveLimits,
+        cases: Vec<TestCase>,
+    ) -> Result<Self, ValidationError> {
         let profile = resolve_revision(revision).ok_or(ValidationError::Profile)?;
         if profile.language != language {
             return Err(ValidationError::Profile);
         }
-        let input = Self::with_profile(
+        let input = Self::with_profile_and_cases(
             profile,
             source,
             Some(stdin),
+            cases,
             RequestedLimits {
                 cpu_time_ms: Some(limits.cpu_time_ms),
                 wall_time_ms: Some(limits.wall_time_ms),
@@ -120,6 +172,10 @@ impl SubmissionInput {
             return Err(ValidationError::Limits);
         }
         Ok(input)
+    }
+
+    pub fn cases(&self) -> &[TestCase] {
+        &self.cases
     }
 
     pub fn profile(&self) -> &'static LanguageProfile {
