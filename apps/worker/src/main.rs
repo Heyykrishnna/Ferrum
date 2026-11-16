@@ -29,8 +29,67 @@ async fn run() -> Result<(), Failure> {
             setup_apalis(&pool).await?;
             Ok(())
         }
-        _ => Err("usage: ferrum-worker [migrate]".into()),
+        [command] if command == "reconcile" => reconcile_cli().await,
+        [cmd, sub] if cmd == "quarantine" && sub == "list" => quarantine_list_cli().await,
+        [cmd, sub, id] if cmd == "quarantine" && sub == "resolve" => {
+            quarantine_resolve_cli(id).await
+        }
+        [cmd, sub, id] if cmd == "quarantine" && sub == "resolve-host" => {
+            quarantine_resolve_host_cli(id).await
+        }
+        _ => Err(
+            "usage: ferrum-worker [migrate | reconcile | quarantine list | quarantine resolve <attempt_id> | quarantine resolve-host <host_id>]".into(),
+        ),
     }
+}
+
+async fn reconcile_cli() -> Result<(), Failure> {
+    let settings = DatabaseSettings::load()?;
+    let pool = connect(&settings).await?;
+    let attempts = ferrum_infrastructure::reconcile_stale_attempts(&pool).await?;
+    let outbox_count =
+        ferrum_infrastructure::reconcile_stuck_outbox(&pool, std::time::Duration::from_secs(30))
+            .await?;
+    let summary = ferrum_domain::ReconciliationSummary {
+        stale_attempts_reconciled: attempts.len(),
+        stuck_outbox_events_reconciled: outbox_count,
+    };
+    println!("{}", serde_json::to_string_pretty(&summary)?);
+    Ok(())
+}
+
+async fn quarantine_list_cli() -> Result<(), Failure> {
+    let settings = DatabaseSettings::load()?;
+    let pool = connect(&settings).await?;
+    let quarantined = ferrum_infrastructure::list_quarantined_attempts(&pool).await?;
+    println!("{}", serde_json::to_string_pretty(&quarantined)?);
+    Ok(())
+}
+
+async fn quarantine_resolve_cli(attempt_id_str: &std::ffi::OsStr) -> Result<(), Failure> {
+    let s = attempt_id_str
+        .to_str()
+        .ok_or("invalid UTF-8 in attempt_id")?;
+    let attempt_id: uuid::Uuid = s.parse().map_err(|_| "invalid UUID for attempt_id")?;
+    let settings = DatabaseSettings::load()?;
+    let pool = connect(&settings).await?;
+    let resolved = ferrum_infrastructure::resolve_quarantine(&pool, attempt_id).await?;
+    if resolved {
+        println!("quarantine resolved for attempt {attempt_id}");
+        Ok(())
+    } else {
+        Err(format!("no active quarantine found for attempt {attempt_id}").into())
+    }
+}
+
+async fn quarantine_resolve_host_cli(host_id_str: &std::ffi::OsStr) -> Result<(), Failure> {
+    let s = host_id_str.to_str().ok_or("invalid UTF-8 in host_id")?;
+    let host_id: uuid::Uuid = s.parse().map_err(|_| "invalid UUID for host_id")?;
+    let settings = DatabaseSettings::load()?;
+    let pool = connect(&settings).await?;
+    let count = ferrum_infrastructure::resolve_all_quarantines_for_host(&pool, host_id).await?;
+    println!("resolved {count} quarantined attempts for host {host_id}");
+    Ok(())
 }
 
 #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
