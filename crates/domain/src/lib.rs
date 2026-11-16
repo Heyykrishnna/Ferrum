@@ -1,6 +1,8 @@
+mod auth;
 mod languages;
 mod policy;
 
+pub use auth::{ApiKey, ApiKeyScope, AuthContext};
 pub use languages::{CommandPlan, CompilationPlan, LANGUAGES, LanguageProfile, resolve_language};
 pub use policy::{EffectiveLimits, RequestedLimits, SubmissionInput, ValidationError};
 
