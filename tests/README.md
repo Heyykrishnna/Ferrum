@@ -18,3 +18,9 @@ Wire later cross-service suites into explicit Cargo test targets. Record Linux h
 Phase 2 starts a new PostgreSQL 17 Compose project with a random loopback port and temporary volume. The suite applies migrations, starts and restarts the API, and verifies concurrent replay, tenant scope, rollback, input bounds, and database readiness. Run the locked release build first. [Phase 2 verification](../phases/02-database-and-submissions.md#verification)
 
 Phase 3 adds portable metadata tests, Linux process supervision tests and an opt-in suite for the real Isolate host. Run the first two in Docker on a Mac. The dedicated Linux host suite checks the adapter, resource limits, cancellation and recovery from a failed cleanup. [Docker checks](../docs/phase3-isolate.md#run-the-linux-checks-in-docker) · [Isolate host verification](../docs/phase3-isolate.md#qualify-the-adapter)
+
+Phase 4 adds worker pipeline execution and leasing tests with PostgreSQL and Apalis. Run `python3 tests/phase4/worker-smoke.py` for sandbox test-double verification or with `--isolate` on the qualified Debian 13 host. [Phase 4 worker architecture](../phases/04-worker-execution.md)
+
+Phase 5 adds multi-language execution and toolchain configuration verification for Python, C, C++, JavaScript, Java, and Rust. [Phase 5 language runtimes](../docs/phase5-languages.md)
+
+Phase 6 adds the judging engine test suites: comparators (exact, whitespace, tokens), custom checkers, multi-case suites, partial scoring, and hidden case privacy. Run `python3 tests/phase6/judging-smoke.py` with PostgreSQL Compose or with `--isolate` on the Linux host. [Phase 6 judging engine](../docs/phase6-judging.md)

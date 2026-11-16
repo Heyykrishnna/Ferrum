@@ -2,7 +2,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use ferrum_application::{IdempotencyKey, SubmissionRepository};
 use ferrum_config::DatabaseSettings;
-use ferrum_domain::{ProcessingState, SubmissionInput, Verdict};
+use ferrum_domain::{
+    CaseContent, CaseFinding, CaseTelemetry, ComparisonMode, ProcessingState, SubmissionInput,
+    TestCase, Verdict,
+};
 use ferrum_infrastructure::{PostgresSubmissions, connect, execution::recover_after_host_probe};
 use ferrum_sandbox::{
     CleanupError, ExecutionFacts, ExecutionReport, ExecutionResult, ProgramOutcome, StageResult,
@@ -117,6 +120,9 @@ impl Sandbox for ControlledSandbox {
                     ..Default::default()
                 },
                 compilation: None,
+                cases: None,
+                score: None,
+                max_score: None,
             }),
             cleanup: self.cleanup,
         }
@@ -310,6 +316,9 @@ async fn postgres_compiler_outcomes_and_diagnostics_are_durable() {
                         ..Default::default()
                     },
                 }),
+                cases: None,
+                score: None,
+                max_score: None,
             }),
             cleanup: CleanupDisposition::Verified,
         };
@@ -461,4 +470,138 @@ async fn postgres_expired_lease_retry_bound_and_cleanup_quarantine() {
     let duplicate = pipeline(&fixture, restarted, sandbox.clone());
     duplicate.handle(job).await.unwrap();
     assert_eq!(sandbox.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
+async fn pipeline_judging_multi_case_scoring_and_privacy() {
+    let fixture = Fixture::new().await;
+    let owner = owner();
+    let cases = vec![
+        TestCase {
+            index: 1,
+            input: "1\n".into(),
+            expected_output: "2\n".into(),
+            weight: 40,
+            hidden: false,
+            comparison_mode: ComparisonMode::Exact,
+        },
+        TestCase {
+            index: 2,
+            input: "2\n".into(),
+            expected_output: "4\n".into(),
+            weight: 60,
+            hidden: true,
+            comparison_mode: ComparisonMode::Exact,
+        },
+    ];
+    let submission_id = fixture
+        .repository
+        .create(
+            fixture.organization_id,
+            IdempotencyKey::parse(&Uuid::new_v4().to_string()).unwrap(),
+            SubmissionInput::with_cases(
+                "python",
+                "x = int(input())\nprint(x * 2)\n".into(),
+                cases,
+                Default::default(),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap()
+        .id;
+
+    assert!(dispatch_execution(&fixture.pool).await.unwrap());
+    let job = fixture.latest_job(submission_id).await;
+    let claimed = claim_execution(&fixture.pool, &job, owner)
+        .await
+        .unwrap()
+        .unwrap()
+        .validate()
+        .unwrap();
+    assert_eq!(claimed.cases().len(), 2);
+    assert_eq!(claimed.cases()[0].weight, 40);
+    assert_eq!(claimed.cases()[1].weight, 60);
+
+    let report = ExecutionReport {
+        result: Ok(ExecutionResult {
+            outcome: ProgramOutcome::Success,
+            stdout: b"2\n".to_vec(),
+            stderr: Vec::new(),
+            facts: ExecutionFacts {
+                exit_code: Some(0),
+                ..Default::default()
+            },
+            compilation: None,
+            cases: Some(vec![
+                CaseFinding::public(
+                    1,
+                    Verdict::Accepted,
+                    40,
+                    40,
+                    CaseContent {
+                        input: "1\n".into(),
+                        expected_output: "2\n".into(),
+                        stdout: "2\n".into(),
+                        stderr: "".into(),
+                    },
+                    CaseTelemetry {
+                        exit_code: Some(0),
+                        signal: None,
+                        cpu_time_ms: Some(10),
+                        wall_time_ms: Some(20),
+                        peak_memory_kib: Some(1024),
+                    },
+                ),
+                CaseFinding::hidden(
+                    2,
+                    Verdict::WrongAnswer,
+                    0,
+                    60,
+                    CaseTelemetry {
+                        exit_code: None,
+                        signal: None,
+                        cpu_time_ms: Some(12),
+                        wall_time_ms: Some(22),
+                        peak_memory_kib: Some(1024),
+                    },
+                ),
+            ]),
+            score: Some(40),
+            max_score: Some(100),
+        }),
+        cleanup: CleanupDisposition::Verified,
+    };
+
+    finalize_execution(&fixture.pool, &job, owner, AttemptReport::Sandbox(&report))
+        .await
+        .unwrap();
+
+    let fetched = fixture
+        .repository
+        .get(fixture.organization_id, submission_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(fetched.state, ProcessingState::Completed);
+    assert_eq!(fetched.verdict, Some(Verdict::WrongAnswer));
+    let result = fetched.result.unwrap();
+    assert_eq!(result.score, Some(40));
+    assert_eq!(result.max_score, Some(100));
+    let cases = result.cases.unwrap();
+    assert_eq!(cases.len(), 2);
+    assert_eq!(cases[0].verdict, Verdict::Accepted);
+    assert_eq!(cases[0].score, 40);
+    assert_eq!(cases[0].input.as_deref(), Some("1\n"));
+    assert_eq!(cases[0].expected_output.as_deref(), Some("2\n"));
+    assert_eq!(cases[0].stdout.as_deref(), Some("2\n"));
+
+    assert_eq!(cases[1].verdict, Verdict::WrongAnswer);
+    assert_eq!(cases[1].score, 0);
+    assert_eq!(cases[1].input, None);
+    assert_eq!(cases[1].expected_output, None);
+    assert_eq!(cases[1].stdout, None);
+    assert_eq!(cases[1].stderr, None);
 }

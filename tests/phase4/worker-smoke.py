@@ -111,11 +111,35 @@ def verify_isolate(api: Path, worker_binary: Path, db, database_env: dict[str, s
             assert failed["result"]["compilation"]["stderr"], failed
             assert failed["result"]["exit_code"] is None, failed
 
+            status, judged, headers = phase2["create"](
+                port, token, "py-judged",
+                {
+                    "language": "python",
+                    "source": "x = int(input())\nprint(x * 2)",
+                    "tests": [
+                        {"input": "2\n", "expected_output": "4\n", "weight": 40},
+                        {"input": "3\n", "expected_output": "7\n", "weight": 60, "hidden": True},
+                    ],
+                },
+            )
+            assert status == 202, status
+            judged_res = poll(port, headers["location"], token, process)
+            assert judged_res["state"] == "completed", judged_res
+            assert judged_res["verdict"] == "wrong_answer", judged_res
+            res = judged_res["result"]
+            assert res["score"] == 40 and res["max_score"] == 100, res
+            assert len(res["cases"]) == 2, res
+            assert res["cases"][0]["verdict"] == "accepted" and res["cases"][0]["score"] == 40
+            assert res["cases"][0]["stdout"] == "4\n"
+            assert res["cases"][1]["verdict"] == "wrong_answer" and res["cases"][1]["score"] == 0
+            assert "input" not in res["cases"][1] and "stdout" not in res["cases"][1]
+
         with phase2["running_api"](api, env) as port:
             assert phase2["request"](port, "GET", path, token=token)[:2] == (200, finished)
             assert phase2["request"](port, "GET", cpp_path, token=token)[:2] == (200, compiled)
+            assert phase2["request"](port, "GET", headers["location"], token=token)[:2] == (200, judged_res)
 
-    for submission in (created, limited, cpp, invalid_cpp):
+    for submission in (created, limited, cpp, invalid_cpp, judged):
         submission_id = UUID(submission["id"])
         row = db.query(
             "SELECT count(*), bool_and(cleanup_disposition = 'verified') "
