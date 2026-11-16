@@ -2,12 +2,16 @@ mod auth;
 mod batch;
 mod languages;
 mod policy;
+mod recovery;
 mod webhooks;
 
 pub use auth::{ApiKey, ApiKeyScope, AuthContext};
 pub use batch::{BatchItemResult, BatchSubmissionResult, MAX_BATCH_SIZE, SubmissionCancelOutcome};
 pub use languages::{CommandPlan, CompilationPlan, LANGUAGES, LanguageProfile, resolve_language};
 pub use policy::{EffectiveLimits, RequestedLimits, SubmissionInput, ValidationError};
+pub use recovery::{
+    QuarantinedAttempt, ReconciledAttempt, ReconciliationSummary, StaleAttemptAction,
+};
 pub use webhooks::{WebhookDelivery, WebhookEndpoint};
 
 use serde::{Deserialize, Serialize};
