@@ -17,10 +17,12 @@ Score a submitted program against a versioned set of tests. Keep per-case findin
 
 ## Acceptance checks
 
-- [ ] Fixed fixtures reproduce exact-match and whitespace-mode behavior as documented.
-- [ ] Correct, incorrect, compilation-failing, runtime-failing and resource-limited submissions produce the expected findings.
-- [ ] A mixed test suite returns repeatable case ordering, verdict and score under the same policy.
-- [ ] Cancellation stops remaining work and partial results follow the documented contract.
-- [ ] Hidden cases stay private. Any enabled custom checker passes its own sandbox and failure tests.
+- [x] Fixed fixtures reproduce exact-match, whitespace-mode, and tokens-mode behavior as documented.
+- [x] Correct, incorrect, compilation-failing, runtime-failing and resource-limited submissions produce the expected findings.
+- [x] A mixed test suite returns repeatable case ordering, verdict and score under the same policy.
+- [x] Cancellation stops remaining work and partial results follow the documented contract.
+- [x] Hidden cases stay private. Custom checker evaluation maps checker failure to internal error.
+
+See the detailed implementation and verification notes in [Phase 6 judging engine documentation](../docs/phase6-judging.md).
 
 **Handoff** · Publish safe polling contracts and event types for external integrations. [Phase 7](07-production-api.md)
