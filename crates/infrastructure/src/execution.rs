@@ -1,8 +1,7 @@
 use ferrum_contracts::{ExecuteSubmission, SubmissionCompleted, SubmissionCreated};
 use ferrum_domain::{EffectiveLimits, ProcessingState, SubmissionInput, ValidationError, Verdict};
 use ferrum_sandbox::{
-    CleanupDisposition, ExecutionReport, ExecutionResult, OutputStream, ProgramOutcome,
-    SandboxError,
+    CleanupDisposition, ExecutionReport, ExecutionResult, ProgramOutcome, SandboxError,
 };
 use sqlx::{PgPool, Postgres, Transaction, types::Json};
 use thiserror::Error;
@@ -43,10 +42,8 @@ pub struct ExecutionInput {
 
 impl ExecutionInput {
     pub fn validate(self) -> Result<SubmissionInput, ValidationError> {
-        if self.language != SubmissionInput::LANGUAGE {
-            return Err(ValidationError::Language);
-        }
         SubmissionInput::from_persisted(
+            &self.language,
             &self.runtime_profile,
             self.source,
             self.stdin,
@@ -145,6 +142,9 @@ pub async fn finalize_execution(
         (ProcessingState::Failed, Some(Verdict::InternalError)),
         |result| match result.outcome {
             ProgramOutcome::Success => (ProcessingState::Completed, None),
+            ProgramOutcome::CompilationError => {
+                (ProcessingState::Completed, Some(Verdict::CompilationError))
+            }
             ProgramOutcome::RuntimeError => {
                 (ProcessingState::Completed, Some(Verdict::RuntimeError))
             }
@@ -328,16 +328,6 @@ async fn persist_result(
     job: &ExecuteSubmission,
     result: &ExecutionResult,
 ) -> Result<(), ExecutionError> {
-    let outcome = match result.outcome {
-        ProgramOutcome::Success => "success",
-        ProgramOutcome::RuntimeError => "runtime_error",
-        ProgramOutcome::CpuTimeLimit => "cpu_time_limit",
-        ProgramOutcome::WallTimeLimit => "wall_time_limit",
-        ProgramOutcome::MemoryLimit => "memory_limit",
-        ProgramOutcome::OutputLimit(OutputStream::Stdout) => "output_limit_stdout",
-        ProgramOutcome::OutputLimit(OutputStream::Stderr) => "output_limit_stderr",
-        ProgramOutcome::Cancelled => "cancelled",
-    };
     let measurement = |value: Option<u64>| {
         value
             .map(i64::try_from)
@@ -353,7 +343,7 @@ async fn persist_result(
     .bind(job.organization_id)
     .bind(job.submission_id)
     .bind(job.attempt_id)
-    .bind(outcome)
+    .bind(result.outcome.as_str())
     .bind(&result.stdout)
     .bind(&result.stderr)
     .bind(result.facts.exit_code.map(i16::from))
@@ -364,6 +354,25 @@ async fn persist_result(
     .execute(&mut **tx)
     .await
     .map_err(execution_storage)?;
+    if let Some(stage) = &result.compilation {
+        sqlx::query(
+            "INSERT INTO compilation_results (attempt_id, outcome, stdout, stderr,
+                exit_code, signal, cpu_time_ms, wall_time_ms, peak_memory_kib)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(job.attempt_id)
+        .bind(stage.outcome.as_str())
+        .bind(&stage.stdout)
+        .bind(&stage.stderr)
+        .bind(stage.facts.exit_code.map(i16::from))
+        .bind(stage.facts.signal.map(i16::from))
+        .bind(measurement(stage.facts.cpu_time_ms)?)
+        .bind(measurement(stage.facts.wall_time_ms)?)
+        .bind(measurement(stage.facts.peak_memory_kib)?)
+        .execute(&mut **tx)
+        .await
+        .map_err(execution_storage)?;
+    }
     Ok(())
 }
 

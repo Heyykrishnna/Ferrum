@@ -1,6 +1,8 @@
 use ferrum_application::{IdempotencyKey, SubmissionError, SubmissionRepository};
 use ferrum_contracts::SubmissionCreated;
-use ferrum_domain::{ProcessingState, Submission, SubmissionInput, SubmissionResult, Verdict};
+use ferrum_domain::{
+    ProcessingState, Submission, SubmissionInput, SubmissionResult, SubmissionStageResult, Verdict,
+};
 use sqlx::{PgPool, types::Json};
 use uuid::Uuid;
 
@@ -40,14 +42,16 @@ struct SubmissionDetailRow {
     id: Uuid,
     state: String,
     verdict: Option<String>,
-    outcome: Option<String>,
-    stdout: Option<Vec<u8>>,
-    stderr: Option<Vec<u8>>,
-    exit_code: Option<i16>,
-    signal: Option<i16>,
-    cpu_time_ms: Option<i64>,
-    wall_time_ms: Option<i64>,
-    peak_memory_kib: Option<i64>,
+    #[sqlx(flatten)]
+    stage: StoredStage,
+    compilation_outcome: Option<String>,
+    compilation_stdout: Option<Vec<u8>>,
+    compilation_stderr: Option<Vec<u8>>,
+    compilation_exit_code: Option<i16>,
+    compilation_signal: Option<i16>,
+    compilation_cpu_time_ms: Option<i64>,
+    compilation_wall_time_ms: Option<i64>,
+    compilation_peak_memory_kib: Option<i64>,
 }
 
 impl SubmissionDetailRow {
@@ -58,7 +62,44 @@ impl SubmissionDetailRow {
             .as_deref()
             .map(|verdict| Verdict::from_storage(verdict).ok_or(SubmissionError::Storage))
             .transpose()?;
-        let result = self.outcome.map(|outcome| SubmissionResult {
+        let result = self.stage.into_domain().map(|execution| SubmissionResult {
+            execution,
+            compilation: StoredStage {
+                outcome: self.compilation_outcome,
+                stdout: self.compilation_stdout,
+                stderr: self.compilation_stderr,
+                exit_code: self.compilation_exit_code,
+                signal: self.compilation_signal,
+                cpu_time_ms: self.compilation_cpu_time_ms,
+                wall_time_ms: self.compilation_wall_time_ms,
+                peak_memory_kib: self.compilation_peak_memory_kib,
+            }
+            .into_domain(),
+        });
+        Ok(Submission {
+            id: self.id,
+            state,
+            verdict,
+            result,
+        })
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct StoredStage {
+    outcome: Option<String>,
+    stdout: Option<Vec<u8>>,
+    stderr: Option<Vec<u8>>,
+    exit_code: Option<i16>,
+    signal: Option<i16>,
+    cpu_time_ms: Option<i64>,
+    wall_time_ms: Option<i64>,
+    peak_memory_kib: Option<i64>,
+}
+
+impl StoredStage {
+    fn into_domain(self) -> Option<SubmissionStageResult> {
+        self.outcome.map(|outcome| SubmissionStageResult {
             outcome,
             stdout: String::from_utf8_lossy(&self.stdout.unwrap_or_default()).into_owned(),
             stderr: String::from_utf8_lossy(&self.stderr.unwrap_or_default()).into_owned(),
@@ -67,12 +108,6 @@ impl SubmissionDetailRow {
             cpu_time_ms: self.cpu_time_ms.and_then(|t| u64::try_from(t).ok()),
             wall_time_ms: self.wall_time_ms.and_then(|t| u64::try_from(t).ok()),
             peak_memory_kib: self.peak_memory_kib.and_then(|m| u64::try_from(m).ok()),
-        });
-        Ok(Submission {
-            id: self.id,
-            state,
-            verdict,
-            result,
         })
     }
 }
@@ -118,8 +153,8 @@ impl SubmissionRepository for PostgresSubmissions {
         .bind(organization_id)
         .bind(Uuid::new_v4())
         .bind(key.as_str())
-        .bind(SubmissionInput::LANGUAGE)
-        .bind(SubmissionInput::PROFILE)
+        .bind(input.profile().language)
+        .bind(input.profile().revision)
         .bind(input.source())
         .bind(input.stdin())
         .bind(Json(input.limits()))
@@ -155,8 +190,8 @@ impl SubmissionRepository for PostgresSubmissions {
             )
             .bind(organization_id)
             .bind(key.as_str())
-            .bind(SubmissionInput::LANGUAGE)
-            .bind(SubmissionInput::PROFILE)
+            .bind(input.profile().language)
+            .bind(input.profile().revision)
             .bind(input.source())
             .bind(input.stdin())
             .bind(Json(input.limits()))
@@ -188,10 +223,19 @@ impl SubmissionRepository for PostgresSubmissions {
                 r.signal,
                 r.cpu_time_ms,
                 r.wall_time_ms,
-                r.peak_memory_kib
+                r.peak_memory_kib,
+                c.outcome AS compilation_outcome,
+                c.stdout AS compilation_stdout,
+                c.stderr AS compilation_stderr,
+                c.exit_code AS compilation_exit_code,
+                c.signal AS compilation_signal,
+                c.cpu_time_ms AS compilation_cpu_time_ms,
+                c.wall_time_ms AS compilation_wall_time_ms,
+                c.peak_memory_kib AS compilation_peak_memory_kib
              FROM submissions s
              LEFT JOIN execution_results r
                 ON (r.organization_id, r.submission_id) = (s.organization_id, s.id)
+             LEFT JOIN compilation_results c ON c.attempt_id = r.attempt_id
              WHERE s.organization_id = $1 AND s.id = $2",
         )
         .bind(organization_id)

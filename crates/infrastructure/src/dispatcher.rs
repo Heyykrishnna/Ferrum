@@ -31,7 +31,7 @@ pub fn execution_queue(pool: &PgPool) -> PostgresStorage<ExecuteSubmission> {
         Config::default()
             .queue(QUEUE)
             .batch_size(1)
-            .persist_results(false),
+            .persist_results(true),
     )
 }
 
