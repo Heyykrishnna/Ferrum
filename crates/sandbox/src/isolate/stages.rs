@@ -216,9 +216,14 @@ fn run_stage(
     ]);
     if runtime {
         cmd.arg("--stdin=/box/input");
-    } else {
-        cmd.args(["--env=PATH=/usr/bin", "--env=TMPDIR=/box"]);
     }
+    cmd.args([
+        "--env=PATH=/usr/local/bin:/usr/bin:/bin",
+        "--env=HOME=/box",
+        "--env=TMPDIR=/box",
+        "--env=LANG=C.UTF-8",
+        "--env=LC_ALL=C.UTF-8",
+    ]);
     if plan.program.starts_with("/usr/lib/jvm/") {
         cmd.arg("--dir=/etc/java-21-openjdk:norec:noexec");
     }
@@ -289,16 +294,24 @@ fn run_stage(
 }
 
 fn stage_file(name: &str, data: &str) -> io::Result<()> {
+    let clean_path = crate::validate_relative_sandbox_path(name)
+        .map_err(|_| io::Error::other("invalid sandbox file path"))?;
     let workspace = Path::new(WORKSPACE).join("box");
     let metadata = fs::symlink_metadata(&workspace)?;
     if !metadata.is_dir() || metadata.uid() != geteuid().as_raw() || metadata.mode() & 0o022 != 0 {
         return Err(io::Error::other("invalid Isolate staging directory"));
     }
+    let target = workspace.join(clean_path);
+    if let Some(parent) = target.parent() {
+        if parent != workspace {
+            fs::create_dir_all(parent)?;
+        }
+    }
     OpenOptions::new()
         .write(true)
         .create_new(true)
         .mode(0o600)
-        .open(workspace.join(name))?
+        .open(&target)?
         .write_all(data.as_bytes())
 }
 

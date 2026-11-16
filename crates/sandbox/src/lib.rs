@@ -118,3 +118,70 @@ pub enum SandboxError {
     #[error("Isolate did not return a valid program result")]
     Metadata,
 }
+
+pub const STERILE_ENV: &[(&str, &str)] = &[
+    ("PATH", "/usr/local/bin:/usr/bin:/bin"),
+    ("HOME", "/box"),
+    ("TMPDIR", "/box"),
+    ("LANG", "C.UTF-8"),
+    ("LC_ALL", "C.UTF-8"),
+];
+
+pub fn validate_relative_sandbox_path(path: &str) -> Result<std::path::PathBuf, SandboxError> {
+    use std::path::{Component, Path, PathBuf};
+
+    let p = Path::new(path);
+    if path.is_empty() || p.is_absolute() {
+        return Err(SandboxError::Stage);
+    }
+
+    let mut clean = PathBuf::new();
+    for component in p.components() {
+        match component {
+            Component::Normal(c) => clean.push(c),
+            Component::CurDir => continue,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(SandboxError::Stage);
+            }
+        }
+    }
+
+    if clean.as_os_str().is_empty() {
+        return Err(SandboxError::Stage);
+    }
+
+    Ok(clean)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[test]
+    fn validates_valid_relative_paths() {
+        assert_eq!(
+            validate_relative_sandbox_path("main.py").unwrap(),
+            PathBuf::from("main.py")
+        );
+        assert_eq!(
+            validate_relative_sandbox_path("src/lib.rs").unwrap(),
+            PathBuf::from("src/lib.rs")
+        );
+        assert_eq!(
+            validate_relative_sandbox_path("./src/./lib.rs").unwrap(),
+            PathBuf::from("src/lib.rs")
+        );
+    }
+
+    #[test]
+    fn rejects_path_traversal_and_absolute_paths() {
+        assert!(validate_relative_sandbox_path("../main.py").is_err());
+        assert!(validate_relative_sandbox_path("src/../../etc/passwd").is_err());
+        assert!(validate_relative_sandbox_path("/etc/passwd").is_err());
+        assert!(validate_relative_sandbox_path("").is_err());
+        assert!(validate_relative_sandbox_path(".").is_err());
+        assert!(validate_relative_sandbox_path("./..").is_err());
+    }
+}
