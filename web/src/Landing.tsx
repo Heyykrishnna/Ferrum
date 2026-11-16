@@ -628,14 +628,14 @@ function Hero() {
   return (
     <section aria-labelledby="hero-heading" className="pt-6 sm:pt-9 lg:pt-12">
       <Frame>
-        <div className="grid gap-4 lg:min-h-156 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="flex flex-col justify-between gap-10 rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-9 lg:p-10 xl:p-12">
+        <div className="grid gap-4 lg:min-h-156 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <div className="flex flex-col justify-between gap-10 rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-9 lg:p-10">
             <div>
               <h1
                 id="hero-heading"
-                className="max-w-2xl text-4xl leading-[1.04] font-semibold tracking-[-0.055em] text-balance text-lp-ink sm:text-5xl xl:text-6xl 2xl:text-7xl"
+                className="text-4xl leading-[1.06] font-semibold tracking-[-0.05em] text-lp-ink sm:text-5xl lg:text-[2.5rem] xl:text-[2.75rem] 2xl:text-6xl"
               >
-                Run untrusted code{' '}
+                Run untrusted code <br className="hidden sm:block" />
                 <span className="text-lp-fade">in a Linux sandbox</span>
               </h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-lp-body xl:text-lg xl:leading-8">
