@@ -1,5 +1,7 @@
+mod languages;
 mod policy;
 
+pub use languages::{CommandPlan, CompilationPlan, LANGUAGES, LanguageProfile, resolve_language};
 pub use policy::{EffectiveLimits, RequestedLimits, SubmissionInput, ValidationError};
 
 use serde::Serialize;
@@ -85,6 +87,14 @@ impl Verdict {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SubmissionResult {
+    #[serde(flatten)]
+    pub execution: SubmissionStageResult,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compilation: Option<SubmissionStageResult>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SubmissionStageResult {
     pub outcome: String,
     pub stdout: String,
     pub stderr: String,
