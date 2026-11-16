@@ -39,8 +39,24 @@ impl ApiError {
         Self::new(
             StatusCode::UNAUTHORIZED,
             "unauthorized",
-            "A valid development bearer token is required",
+            "A valid bearer token is required",
         )
+    }
+
+    pub fn forbidden(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(StatusCode::FORBIDDEN, code, message)
+    }
+
+    pub fn too_many_requests(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(StatusCode::TOO_MANY_REQUESTS, code, message)
+    }
+
+    pub fn conflict(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(StatusCode::CONFLICT, code, message)
+    }
+
+    pub fn bad_request(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, code, message)
     }
 
     pub fn not_found() -> Self {
@@ -97,6 +113,11 @@ impl From<SubmissionError> for ApiError {
             SubmissionError::IdempotencyConflict => Self::new(
                 StatusCode::CONFLICT,
                 "idempotency_conflict",
+                error.to_string(),
+            ),
+            SubmissionError::BatchLimitExceeded => Self::new(
+                StatusCode::BAD_REQUEST,
+                "batch_limit_exceeded",
                 error.to_string(),
             ),
             SubmissionError::Unavailable => Self::new(
