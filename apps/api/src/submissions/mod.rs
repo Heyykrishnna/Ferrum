@@ -13,7 +13,8 @@ use axum::{
 use ferrum_application::{IdempotencyKey, SubmissionRepository};
 use ferrum_config::DevelopmentCaller;
 use ferrum_domain::{
-    ProcessingState, RequestedLimits, Submission, SubmissionInput, SubmissionResult, Verdict,
+    LANGUAGES, ProcessingState, RequestedLimits, Submission, SubmissionInput, SubmissionResult,
+    Verdict,
 };
 use ferrum_infrastructure::PostgresSubmissions;
 use serde::{Deserialize, Serialize};
@@ -54,8 +55,33 @@ impl From<Submission> for SubmissionResponse {
     }
 }
 
+#[derive(Serialize)]
+struct LanguageResponse {
+    id: u16,
+    language: &'static str,
+    profile: &'static str,
+    compiled: bool,
+    runtime_limits: &'static ferrum_domain::EffectiveLimits,
+}
+
+async fn languages() -> Json<Vec<LanguageResponse>> {
+    Json(
+        LANGUAGES
+            .iter()
+            .map(|profile| LanguageResponse {
+                id: profile.id,
+                language: profile.language,
+                profile: profile.revision,
+                compiled: profile.compile.is_some(),
+                runtime_limits: &profile.run_limits,
+            })
+            .collect(),
+    )
+}
+
 pub fn router(repository: PostgresSubmissions, caller: DevelopmentCaller) -> Router {
     Router::new()
+        .route("/v1/languages", get(languages))
         .route("/v1/submissions", post(create))
         .route("/v1/submissions/{id}", get(fetch))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
