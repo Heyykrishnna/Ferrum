@@ -12,7 +12,7 @@ This planning reference follows the durable handoff and execution flow in the [a
 | Execution attempt | A specific run with owner, lease generation, timestamps and cleanup disposition |
 | Execution result | Bounded output, exit facts, measured resources and any program verdict, linked to the producing attempt |
 
-The normal progression is `created → queued → processing → completed`. A worker may receive the job before the dispatcher records publication. The guarded claim should accept that delivery once it verifies the committed submission and event, while a late publication update must leave an already processing or terminal submission unchanged. An unrecoverable platform fault can terminate processing as `failed`. A verified cancellation terminates it as `cancelled`. Platform retries create new attempts only after the previous attempt is safely stopped or its host is fenced. Terminal states remain stable under duplicate deliveries.
+The normal progression is `created → queued → processing → completed`. The Phase 4 dispatcher commits the queue row, attempt and publication marker together. A delivery can claim its queued attempt only once. An unrecoverable platform fault can terminate processing as `failed`. A verified cancellation terminates it as `cancelled`. Platform retries create new attempts only after the previous attempt is safely stopped or its host is fenced. Terminal states remain stable under duplicate deliveries.
 
 Program verdict and cleanup status have separate meanings. `completed` with `time_limit_exceeded` is a correctly reported execution outcome. If teardown fails after a result is written, preserve the result, record the cleanup failure, and keep the affected worker capacity unavailable pending verification.
 

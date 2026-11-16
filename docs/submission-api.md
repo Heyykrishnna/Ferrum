@@ -35,7 +35,7 @@ curl -i "http://127.0.0.1:8080/v1/submissions/$SUBMISSION_ID" \
   -H "Authorization: Bearer $FERRUM_DEV_TOKEN"
 ```
 
-Set `SUBMISSION_ID` to the returned UUID. A successful create returns HTTP 202 with `Location: /v1/submissions/{id}`. A successful poll returns HTTP 200. Both bodies contain `id`, `state`, and `verdict`. Newly submitted records have state `created` and a null verdict. Work reaches later states when the worker pipeline is integrated in Phase 4.
+Set `SUBMISSION_ID` to the returned UUID. A successful create returns HTTP 202 with `Location: /v1/submissions/{id}`. A successful poll returns HTTP 200. Both bodies contain `id`, `state`, and `verdict`. Newly submitted records have state `created` and a null verdict. When it exists, the poll response includes `result` with `outcome`, `stdout`, `stderr`, `exit_code`, `signal`, `cpu_time_ms`, `wall_time_ms`, and `peak_memory_kib`. Unavailable measurements are null. The API displays output as UTF-8 with replacement for invalid sequences and PostgreSQL preserves the captured bytes. A successful unjudged execution has a null verdict. [Worker setup](phase4-worker.md)
 
 The JSON body allows `language` (currently `python`), `source` (1–65,536 UTF-8 bytes), optional `stdin` (up to 65,536 UTF-8 bytes), and optional `limits`. Source and stdin exclude NUL characters. The encoded JSON request is capped at 800 KiB. The optional limits are positive integers in the following units.
 

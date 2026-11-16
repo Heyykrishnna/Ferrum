@@ -1,6 +1,6 @@
 # Phase 3 Rust Isolate adapter
 
-The adapter runs the `python3.13-v1` profile on the dedicated Debian 13 amd64 worker profile. It reserves Isolate box 0 for one execution at a time. The submission API continues to persist requests for the future queue worker. [Linux worker setup](phase0-linux-worker.md) · [Phase 4 handoff](../phases/04-apalis-worker-pipeline.md)
+The adapter runs the `python3.13-v1` profile on the dedicated Debian 13 amd64 worker profile. It reserves Isolate box 0 for one execution at a time. The Phase 4 queue worker uses this adapter to execute persisted Python submissions. [Linux worker setup](phase0-linux-worker.md) · [Phase 4 handoff](../phases/04-apalis-worker-pipeline.md)
 
 ## Run the Linux checks in Docker
 

@@ -10,6 +10,6 @@ Prove one single-file Python execution before expanding the language matrix.
 | Program outcome | Keep the state, exit facts, output, resource measurements and verdict distinct. A normal execution need not imply that any expected output was judged. |
 | Scope | Private development API with a trusted caller context and explicit tenant scoping. External API keys, webhooks, multi-file input and test suites arrive later. |
 
-Phase 2 defines the local intake and polling contract. [Private submission API](submission-api.md)
+The private submission API defines the intake and polling contract. The worker runbook provides the disposable PostgreSQL checks and the end-to-end command for a qualified host. [Private submission API](submission-api.md) · [Worker runbook](phase4-worker.md)
 
 Exercise success and failure against real PostgreSQL, Apalis and the supported Linux worker. Record the submission ID and verify a durable result after restart. Deliver the same job concurrently and verify at most one eligible attempt runs. Interrupt a worker and verify old attempt ownership cannot overwrite the recovered result. Verify resource enforcement, cleanup and a useful diagnostic for failed teardown. Attach these results before marking Phase 4 complete.
