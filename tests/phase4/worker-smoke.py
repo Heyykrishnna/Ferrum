@@ -84,10 +84,38 @@ def verify_isolate(api: Path, worker_binary: Path, db, database_env: dict[str, s
             assert timed_out["verdict"] == "time_limit_exceeded", timed_out
             assert timed_out["result"]["outcome"] == "wall_time_limit", timed_out
 
+            status, cpp, headers = phase2["create"](
+                port, token, "cpp-success",
+                {
+                    "language": "cpp",
+                    "source": "#include <iostream>\n#include <string>\n"
+                    "int main() { std::string line; std::getline(std::cin, line);"
+                    " std::cout << line << std::endl; }",
+                    "stdin": "phase 5\n",
+                },
+            )
+            assert status == 202, status
+            cpp_path = headers["location"]
+            compiled = poll(port, cpp_path, token, process)
+            assert compiled["state"] == "completed" and compiled["verdict"] is None, compiled
+            assert compiled["result"]["stdout"] == "phase 5\n", compiled
+            assert compiled["result"]["compilation"]["outcome"] == "success", compiled
+
+            status, invalid_cpp, headers = phase2["create"](
+                port, token, "cpp-invalid",
+                {"language": "cpp", "source": "this is not valid source !"},
+            )
+            assert status == 202, status
+            failed = poll(port, headers["location"], token, process)
+            assert failed["verdict"] == "compilation_error", failed
+            assert failed["result"]["compilation"]["stderr"], failed
+            assert failed["result"]["exit_code"] is None, failed
+
         with phase2["running_api"](api, env) as port:
             assert phase2["request"](port, "GET", path, token=token)[:2] == (200, finished)
+            assert phase2["request"](port, "GET", cpp_path, token=token)[:2] == (200, compiled)
 
-    for submission in (created, limited):
+    for submission in (created, limited, cpp, invalid_cpp):
         submission_id = UUID(submission["id"])
         row = db.query(
             "SELECT count(*), bool_and(cleanup_disposition = 'verified') "

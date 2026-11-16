@@ -141,7 +141,7 @@ def request(
     body: dict | bytes | None = None,
     key: str | None = None,
     extra: dict[str, str] | None = None,
-) -> tuple[int, dict, dict]:
+) -> tuple[int, dict | list, dict]:
     headers = {"Content-Type": "application/json", **(extra or {})}
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
@@ -187,6 +187,20 @@ def parallel_create(
         return list(pool.map(submit, requests))
 
 
+def verify_languages(port: int, token: str) -> None:
+    status, languages, _ = request(port, "GET", "/v1/languages", token=token)
+    assert status == 200
+    assert [item["language"] for item in languages] == [
+        "python", "cpp", "javascript", "c", "java", "rust"
+    ]
+    assert len({item["id"] for item in languages}) == 6
+    assert len({item["profile"] for item in languages}) == 6
+    assert [item["language"] for item in languages if item["compiled"]] == [
+        "cpp", "c", "java", "rust"
+    ]
+    assert request(port, "GET", "/v1/languages")[0] == 401
+
+
 def verify_invalid_requests(port: int, token: str, db: Database) -> None:
     baseline = counts(db)
     status, _, headers = request(
@@ -198,7 +212,7 @@ def verify_invalid_requests(port: int, token: str, db: Database) -> None:
     assert create(port, token, "bad key")[0] == 400
 
     invalid_requests = [
-        {**REQUEST, "language": "javascript"},
+        {**REQUEST, "language": "unsupported"},
         {**REQUEST, "source": ""},
         {**REQUEST, "source": "é" * 32769},
         {**REQUEST, "source": "a\0b"},
@@ -343,13 +357,14 @@ def main() -> None:
             subprocess.run(
                 [binary, "migrate"], env=migration_env, check=True, timeout=15
             )
-        assert db.query("SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success") == "{1,2}"
+        assert db.query("SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success") == "{1,2,3}"
 
         with running_api(binary, env) as port:
             assert request(port, "GET", "/health/ready")[:2] == (
                 200,
                 {"status": "ready"},
             )
+            verify_languages(port, token)
             verify_invalid_requests(port, token, db)
             original, location = verify_conflict_and_rollback(port, token, tenant, db)
             assert request(port, "GET", location, token=token)[:2] == (200, original)
