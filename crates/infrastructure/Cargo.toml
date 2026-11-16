@@ -13,6 +13,7 @@ ferrum-config.workspace = true
 ferrum-contracts.workspace = true
 ferrum-domain.workspace = true
 ferrum-judge.workspace = true
+ferrum-runtime.workspace = true
 ferrum-sandbox.workspace = true
 hex.workspace = true
 serde_json.workspace = true

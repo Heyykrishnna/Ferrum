@@ -429,6 +429,16 @@ pub async fn reconcile_stale_attempts(
         }
     }
 
+    let metrics = ferrum_runtime::MetricsRegistry::global();
+    metrics
+        .reconciliation_runs_total
+        .inc(&[("target", "stale_attempts")]);
+    if !reconciled.is_empty() {
+        metrics
+            .reconciled_items_total
+            .inc_by(&[("target", "stale_attempts")], reconciled.len() as u64);
+    }
+
     Ok(reconciled)
 }
 

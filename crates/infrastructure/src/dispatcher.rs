@@ -37,6 +37,7 @@ pub fn execution_queue(pool: &PgPool) -> PostgresStorage<ExecuteSubmission> {
 }
 
 pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
+    let start = std::time::Instant::now();
     let mut tx = pool.begin().await.map_err(execution_storage)?;
     let event = sqlx::query_as::<_, OutboxEvent>(
         "SELECT id, organization_id, submission_id, event_type, traceparent FROM outbox_events
@@ -55,6 +56,15 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
 
     publish_event_tx(&mut tx, &event).await?;
     tx.commit().await.map_err(execution_storage)?;
+
+    let duration = start.elapsed().as_secs_f64();
+    let metrics = ferrum_runtime::MetricsRegistry::global();
+    metrics.outbox_dispatch_duration_seconds.observe(&[], duration);
+    metrics.outbox_events_total.inc(&[
+        ("event_type", event.event_type.as_str()),
+        ("status", "published"),
+    ]);
+
     Ok(true)
 }
 
@@ -105,6 +115,16 @@ pub async fn reconcile_stuck_outbox(
         if reconciled_count >= 100 {
             break;
         }
+    }
+
+    let metrics = ferrum_runtime::MetricsRegistry::global();
+    metrics
+        .reconciliation_runs_total
+        .inc(&[("target", "stuck_outbox")]);
+    if reconciled_count > 0 {
+        metrics
+            .reconciled_items_total
+            .inc_by(&[("target", "stuck_outbox")], reconciled_count as u64);
     }
 
     Ok(reconciled_count)

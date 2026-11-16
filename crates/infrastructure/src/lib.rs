@@ -1,6 +1,7 @@
 pub mod api_keys;
 pub mod dispatcher;
 pub mod execution;
+pub mod metrics;
 mod submissions;
 pub mod webhooks;
 
@@ -24,6 +25,7 @@ pub use execution::{
     recover_after_host_probe, renew_attempt_lease, resolve_all_quarantines_for_host,
     resolve_quarantine,
 };
+pub use metrics::collect_storage_metrics;
 pub use submissions::PostgresSubmissions;
 pub use webhooks::{
     WebhookError, create_webhook_endpoint, delete_webhook_endpoint, generate_webhook_secret,
