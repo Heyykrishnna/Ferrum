@@ -3,7 +3,7 @@ use std::time::Duration;
 use apalis::prelude::TaskBuilder;
 use apalis_postgres::{Config, PostgresStorage, queries::push_tasks};
 use ferrum_contracts::{ExecuteSubmission, SubmissionCreated};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use super::execution::{ExecutionError, execution_storage};
@@ -52,6 +52,67 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
         return Ok(false);
     };
 
+    publish_event_tx(&mut tx, &event).await?;
+    tx.commit().await.map_err(execution_storage)?;
+    Ok(true)
+}
+
+pub async fn reconcile_stuck_outbox(
+    pool: &PgPool,
+    stale_after: Duration,
+) -> Result<usize, ExecutionError> {
+    let mut reconciled_count = 0;
+    let stale_ms = stale_after.as_millis().max(1) as i64;
+    loop {
+        let mut tx = pool.begin().await.map_err(execution_storage)?;
+        let event = sqlx::query_as::<_, OutboxEvent>(
+            "SELECT id, organization_id, submission_id, event_type FROM outbox_events
+             WHERE published_at IS NULL AND created_at <= clock_timestamp() - ($1 * interval '1 millisecond')
+             ORDER BY created_at ASC, id ASC
+             LIMIT 1 FOR UPDATE SKIP LOCKED",
+        )
+        .bind(stale_ms)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(execution_storage)?;
+
+        let Some(event) = event else {
+            break;
+        };
+
+        if event.event_type == SubmissionCreated::EVENT_TYPE || event.event_type == RETRY_EVENT {
+            publish_event_tx(&mut tx, &event).await?;
+        } else {
+            sqlx::query("UPDATE outbox_events SET published_at = now() WHERE id = $1")
+                .bind(event.id)
+                .execute(&mut *tx)
+                .await
+                .map_err(execution_storage)?;
+        }
+
+        tx.commit().await.map_err(execution_storage)?;
+
+        tracing::warn!(
+            event = "stuck_outbox_reconciled",
+            event_id = %event.id,
+            %event.organization_id,
+            %event.submission_id,
+            event_type = %event.event_type
+        );
+
+        reconciled_count += 1;
+        if reconciled_count >= 100 {
+            break;
+        }
+    }
+
+    Ok(reconciled_count)
+}
+
+async fn publish_event_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    event: &OutboxEvent,
+) -> Result<(), ExecutionError> {
     let expected = if event.event_type == RETRY_EVENT {
         "queued"
     } else {
@@ -64,7 +125,7 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
     .bind(event.organization_id)
     .bind(event.submission_id)
     .bind(expected)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await
     .map_err(execution_storage)?;
 
@@ -75,7 +136,7 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
         )
         .bind(event.organization_id)
         .bind(event.submission_id)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await
         .map_err(execution_storage)?;
         let job = ExecuteSubmission {
@@ -86,13 +147,14 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
         };
         sqlx::query(
             "INSERT INTO execution_attempts (id, organization_id, submission_id, attempt_number, state)
-             VALUES ($1, $2, $3, $4, 'queued')",
+             VALUES ($1, $2, $3, $4, 'queued')
+             ON CONFLICT (id) DO NOTHING",
         )
         .bind(job.attempt_id)
         .bind(job.organization_id)
         .bind(job.submission_id)
         .bind(number)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(execution_storage)?;
 
@@ -107,16 +169,15 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
             .max_attempts(10)
             .run_after(delay)
             .build();
-        push_tasks(&mut *tx, QUEUE, vec![task])
+        push_tasks(&mut **tx, QUEUE, vec![task])
             .await
             .map_err(|_| ExecutionError::Queue)?;
     }
 
     sqlx::query("UPDATE outbox_events SET published_at = now() WHERE id = $1")
         .bind(event.id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(execution_storage)?;
-    tx.commit().await.map_err(execution_storage)?;
-    Ok(true)
+    Ok(())
 }
