@@ -3,10 +3,10 @@ use std::{io, sync::Arc, time::Duration};
 use apalis::prelude::*;
 use ferrum_contracts::ExecuteSubmission;
 use ferrum_infrastructure::{
-    dispatcher::{dispatch_execution, execution_queue},
+    dispatcher::{dispatch_execution, execution_queue, reconcile_stuck_outbox},
     execution::{
         AttemptReport, ExecutionError, ExecutionOwner, claim_execution, finalize_execution,
-        renew_attempt_lease,
+        reconcile_stale_attempts, renew_attempt_lease,
     },
 };
 use ferrum_sandbox::{CleanupDisposition, Sandbox, SandboxError};
@@ -15,6 +15,8 @@ use tokio_util::sync::CancellationToken;
 
 const HEARTBEAT: Duration = Duration::from_secs(5);
 const OUTBOX_POLL: Duration = Duration::from_millis(500);
+const RECONCILE_POLL: Duration = Duration::from_secs(10);
+const STUCK_OUTBOX_MAX_AGE: Duration = Duration::from_secs(30);
 
 pub async fn run<S: Sandbox + Send + Sync + 'static>(
     pool: PgPool,
@@ -68,13 +70,43 @@ pub async fn run<S: Sandbox + Send + Sync + 'static>(
         Ok::<(), WorkerError>(())
     };
 
-    let (consumer_res, _) = tokio::join!(
+    let reconcile = async {
+        loop {
+            tokio::select! {
+                biased;
+                _ = stop.cancelled() => break,
+                _ = failure.cancelled() => break,
+                _ = tokio::time::sleep(RECONCILE_POLL) => {}
+            }
+            match reconcile_stale_attempts(&pool).await {
+                Ok(attempts) if !attempts.is_empty() => {
+                    tracing::info!(
+                        event = "background_reconciled_stale_attempts",
+                        count = attempts.len()
+                    );
+                }
+                Ok(_) => {}
+                Err(error) => tracing::warn!(event = "stale_attempt_reconcile_failed", %error),
+            }
+            match reconcile_stuck_outbox(&pool, STUCK_OUTBOX_MAX_AGE).await {
+                Ok(count) if count > 0 => {
+                    tracing::info!(event = "background_reconciled_stuck_outbox", count);
+                }
+                Ok(_) => {}
+                Err(error) => tracing::warn!(event = "stuck_outbox_reconcile_failed", %error),
+            }
+        }
+        Ok::<(), WorkerError>(())
+    };
+
+    let (consumer_res, _, _) = tokio::join!(
         async {
             let res = consumer.await;
             stop.cancel();
             res
         },
         dispatch,
+        reconcile,
     );
     consumer_res.map_err(|e| Box::new(e) as BoxDynError)?;
     if failure.is_cancelled() {
