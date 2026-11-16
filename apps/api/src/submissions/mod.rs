@@ -13,8 +13,8 @@ use axum::{
 use ferrum_application::{IdempotencyKey, SubmissionRepository};
 use ferrum_config::DevelopmentCaller;
 use ferrum_domain::{
-    LANGUAGES, ProcessingState, RequestedLimits, Submission, SubmissionInput, SubmissionResult,
-    Verdict,
+    ComparisonMode, LANGUAGES, ProcessingState, RequestedLimits, Submission, SubmissionInput,
+    SubmissionResult, TestCase, Verdict,
 };
 use ferrum_infrastructure::PostgresSubmissions;
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,30 @@ struct CreateSubmission {
     source: String,
     stdin: Option<String>,
     #[serde(default)]
+    expected_output: Option<String>,
+    #[serde(default)]
+    comparison_mode: Option<ComparisonMode>,
+    #[serde(default)]
+    tests: Option<Vec<TestCaseInput>>,
+    #[serde(default)]
     limits: RequestedLimits,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TestCaseInput {
+    input: Option<String>,
+    expected_output: String,
+    #[serde(default = "default_weight")]
+    weight: u32,
+    #[serde(default)]
+    hidden: bool,
+    #[serde(default)]
+    comparison_mode: Option<ComparisonMode>,
+}
+
+fn default_weight() -> u32 {
+    1
 }
 
 #[derive(Serialize)]
@@ -124,10 +147,39 @@ async fn create(
     let key = single_header(&headers, "idempotency-key").ok_or_else(ApiError::idempotency_key)?;
     let key = IdempotencyKey::parse(key)?;
     let Json(request) = request.map_err(ApiError::from_json)?;
-    let input = SubmissionInput::new(
+    let cases = match request.tests {
+        Some(tests) => tests
+            .into_iter()
+            .enumerate()
+            .map(|(i, t)| TestCase {
+                index: (i + 1) as u32,
+                input: t.input.unwrap_or_default(),
+                expected_output: t.expected_output,
+                weight: t.weight,
+                hidden: t.hidden,
+                comparison_mode: t
+                    .comparison_mode
+                    .or(request.comparison_mode)
+                    .unwrap_or(ComparisonMode::Exact),
+            })
+            .collect(),
+        None => match request.expected_output {
+            Some(expected_output) => vec![TestCase {
+                index: 1,
+                input: request.stdin.clone().unwrap_or_default(),
+                expected_output,
+                weight: 1,
+                hidden: false,
+                comparison_mode: request.comparison_mode.unwrap_or(ComparisonMode::Exact),
+            }],
+            None => Vec::new(),
+        },
+    };
+    let input = SubmissionInput::with_stdin_and_cases(
         &request.language,
         request.source,
         request.stdin,
+        cases,
         request.limits,
     )?;
     let submission = repository.create(organization_id, key, input).await?;
