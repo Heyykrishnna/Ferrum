@@ -17,68 +17,74 @@
   --color-on-accent: var(--on-accent);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
-  --color-console: #202a26;
-  --color-console-text: #f1f6f0;
-  --color-console-edge: #3b4a42;
-  --color-console-muted: #acbeb1;
-  --color-console-accent: #a0dbac;
-  --color-lp-canvas: #ebebe9;
+  --color-console: var(--night);
+  --color-console-text: var(--night-text);
+  --color-console-edge: var(--night-edge);
+  --color-console-muted: var(--night-muted);
+  --color-console-accent: var(--night-accent);
+  --color-lp-canvas: #ebedf3;
   --color-lp-card: #ffffff;
-  --color-lp-panel: #f3f3f1;
-  --color-lp-line: #e2e2de;
-  --color-lp-ink: #111111;
-  --color-lp-body: #5b5b57;
-  --color-lp-fade: #a2a29e;
-  --color-lp-night: #141414;
-  --color-lp-night-raise: #1c1c1c;
-  --color-lp-night-line: #2b2b2b;
-  --color-lp-night-text: #d7d7d2;
-  --color-lp-night-fade: #868680;
-  --color-lp-leaf: #4b8a37;
-  --color-lp-leaf-soft: #b9e48f;
-  --color-lp-leaf-deep: #18220f;
+  --color-lp-panel: #f6f7fb;
+  --color-lp-line: #d8dce6;
+  --color-lp-ink: #171e32;
+  --color-lp-body: #455168;
+  --color-lp-fade: #596580;
+  --color-lp-night: var(--night);
+  --color-lp-night-raise: #252d4a;
+  --color-lp-night-line: var(--night-edge);
+  --color-lp-night-text: var(--night-text);
+  --color-lp-night-fade: var(--night-muted);
+  --color-lp-accent: #384bb5;
+  --color-lp-accent-soft: var(--night-accent);
+  --color-lp-accent-deep: #232d54;
+  --color-lp-code-string: #9ddfc9;
+  --color-lp-tint: #e8ecff;
 }
 
 @layer base {
   :root {
     color-scheme: light;
-    --canvas: #e8e8e0;
-    --surface: #f6f5ee;
-    --editor: #fcfbf7;
-    --chrome: #eeeee5;
-    --subtle: #e8eae0;
-    --ink: #222e27;
-    --muted: #526156;
-    --edge: #d4d9cf;
-    --accent: #284c3e;
-    --accent-hover: #365f50;
-    --accent-ink: #2f674d;
-    --on-accent: #f5faf4;
-    --warning: #99702e;
+    --night: #161c32;
+    --night-edge: #353e5b;
+    --night-text: #ecf0ff;
+    --night-muted: #abb5d0;
+    --night-accent: #b8c5ff;
+    --canvas: #ebedf3;
+    --surface: #ffffff;
+    --editor: #fbfcff;
+    --chrome: #f6f7fb;
+    --subtle: #e8ecff;
+    --ink: #171e32;
+    --muted: #596580;
+    --edge: #d8dce6;
+    --accent: #384bb5;
+    --accent-hover: #2d3e9b;
+    --accent-ink: #384bb5;
+    --on-accent: #ffffff;
+    --warning: #87591d;
     --danger: #a0382d;
   }
 
   [data-theme='dark'] {
     color-scheme: dark;
-    --canvas: #17231f;
-    --surface: #202b26;
-    --editor: #19221f;
-    --chrome: #24322b;
-    --subtle: #2d3e34;
-    --ink: #edf3ea;
-    --muted: #b1c1b4;
-    --edge: #394b40;
-    --accent: #a5d7b3;
-    --accent-hover: #b8e5c5;
-    --accent-ink: #a5d7b3;
-    --on-accent: #182b20;
+    --canvas: #101526;
+    --surface: #1a2139;
+    --editor: #141b30;
+    --chrome: #212a44;
+    --subtle: #293453;
+    --ink: #edf0ff;
+    --muted: #b2bdd8;
+    --edge: #384360;
+    --accent: #b8c5ff;
+    --accent-hover: #d0d8ff;
+    --accent-ink: #b8c5ff;
+    --on-accent: #171e32;
     --warning: #deb469;
     --danger: #ffa79d;
   }
 
   html {
-    scroll-behavior: smooth;
-    scroll-padding-top: 5rem;
+    scroll-padding-top: 5.5rem;
   }
 
   :focus-visible {

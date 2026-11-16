@@ -14,6 +14,7 @@ import {
   Menu,
   MemoryStick,
   ShieldOff,
+  Terminal,
   Trash2,
   X,
 } from 'lucide-react';
@@ -346,7 +347,7 @@ function TextLink({
 }
 
 function Eyebrow({ children }: { children: ReactNode }) {
-  return <p className="text-[12px] font-medium text-lp-accent">{children}</p>;
+  return <p className="font-mono text-xs font-medium tracking-wide text-lp-accent">{children}</p>;
 }
 
 function SectionHeading({
@@ -363,16 +364,16 @@ function SectionHeading({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-6">
-      <div className="max-w-2xl">
+    <div className="grid items-end gap-4 border-b border-lp-line pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-10">
+      <div>
         <Eyebrow>{eyebrow}</Eyebrow>
-        <h2 className="mt-3 text-[30px] leading-[1.1] font-normal tracking-[-0.035em] text-lp-ink sm:text-[38px]">
+        <h2 className="mt-3 text-3xl leading-tight font-semibold tracking-tight text-lp-ink sm:text-4xl xl:text-5xl">
           {strong} <span className="text-lp-fade">{faint}</span>
           {trailing && <> {trailing}</>}
         </h2>
       </div>
       {children && (
-        <p className="max-w-sm text-[14px] leading-6 text-lp-body">
+        <p className="max-w-prose text-base leading-7 text-lp-body">
           {children}
         </p>
       )}
@@ -380,17 +381,9 @@ function SectionHeading({
   );
 }
 
-function Frame({
-  children,
-  className = '',
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+function Frame({ children }: { children: ReactNode }) {
   return (
-    <div
-      className={`rounded-[28px] border border-lp-line bg-lp-card p-2.5  ${className}`}
-    >
+    <div className="min-w-0 rounded-2xl border border-lp-line bg-lp-card p-2 shadow-sm sm:p-3 lg:p-4">
       {children}
     </div>
   );
@@ -423,38 +416,36 @@ function CodeLine({ line }: { line: string }) {
 function CodePanel() {
   const [sample, setSample] = useState<RequestSample>('Submit');
   return (
-    <div className="flex h-full flex-col rounded-xl bg-lp-night p-3 ">
+    <div className="flex min-w-0 flex-col rounded-xl border border-lp-night-line bg-lp-night p-4 sm:p-6 xl:p-8">
+      <div className="mb-5 flex items-center gap-2 text-sm font-medium text-lp-night-text">
+        <Terminal size={18} aria-hidden="true" className="text-lp-accent-soft" />
+        API example
+      </div>
       <div
-        role="tablist"
-        aria-label="API example"
-        className="flex items-center gap-1 rounded-md border border-lp-night-line p-1"
+        role="group"
+        aria-label="Example step"
+        className="grid grid-cols-3 gap-1 rounded-lg border border-lp-night-line p-1"
       >
         {(Object.keys(requestSamples) as RequestSample[]).map((name) => (
           <button
             key={name}
             type="button"
-            role="tab"
-            aria-selected={sample === name}
+            aria-pressed={sample === name}
             onClick={() => setSample(name)}
-            className={`flex h-8 items-center gap-2 rounded-md px-3.5 text-[12px] transition-colors ${
+            className={`min-h-10 rounded-md px-2 text-sm font-medium transition-colors focus-visible:outline-lp-accent-soft ${
               sample === name
-                ? 'bg-lp-night-raise text-white'
+                ? 'bg-lp-accent-deep text-lp-night-text'
                 : 'text-lp-night-fade hover:text-lp-night-text'
             }`}
           >
-            {sample === name && (
-              <span className="grid size-4 place-items-center rounded-md bg-lp-accent-soft font-mono text-[9px] font-semibold text-lp-accent-deep">
-                F
-              </span>
-            )}
             {name}
           </button>
         ))}
       </div>
       <pre
-        role="tabpanel"
         aria-label={`${sample} example`}
-        className="mt-3 min-h-[320px] flex-1 overflow-x-auto rounded-lg border border-lp-night-line p-5 font-mono text-[12px] leading-[1.75]"
+        tabIndex={0}
+        className="mt-4 h-100 flex-1 overflow-auto rounded-lg border border-lp-night-line p-4 font-mono text-xs leading-6 focus-visible:outline-lp-accent-soft sm:p-6 sm:text-sm sm:leading-7"
       >
         <code>
           {requestSamples[sample].split('\n').map((line, index) => (
@@ -465,18 +456,13 @@ function CodePanel() {
           ))}
         </code>
       </pre>
-      <div className="mt-3 grid gap-2 sm:grid-cols-[auto_1fr]">
-        <span className="flex h-11 items-center gap-2 rounded-md border border-[#2c3a22] bg-lp-accent-deep px-4 text-[12px] text-lp-accent-soft">
-          <CircleCheck size={15} aria-hidden="true" /> Isolated in a sandbox
-        </span>
-        <a
-          href="/playground"
-          className="flex h-11 items-center justify-between rounded-md bg-white px-5 text-[12.5px] font-medium text-lp-ink transition-colors hover:bg-lp-panel"
-        >
-          Try it in the playground
-          <ArrowRight size={15} aria-hidden="true" />
-        </a>
-      </div>
+      <a
+        href="/playground"
+        className="mt-4 flex min-h-12 items-center justify-between gap-3 rounded-md border border-lp-night-line bg-lp-night-raise px-4 text-sm font-medium text-lp-night-text transition-colors hover:bg-lp-accent-deep focus-visible:outline-lp-accent-soft"
+      >
+        Try it in the playground
+        <ArrowRight size={17} aria-hidden="true" />
+      </a>
     </div>
   );
 }
@@ -491,7 +477,7 @@ function Navigation() {
       >
         <a
           href="/"
-          className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight text-lp-ink"
+          className="text-xl font-semibold tracking-tight text-lp-ink"
         >
           Ferrum
         </a>
@@ -515,7 +501,7 @@ function Navigation() {
           </TextLink>
           <a
             href="/playground"
-            className="flex h-9 items-center gap-1.5 rounded-md bg-lp-night px-4 text-[13px] font-medium text-white transition-colors hover:bg-lp-night-raise"
+            className="flex h-10 items-center gap-1.5 rounded-md bg-lp-accent px-3 text-sm font-medium text-white transition-colors hover:bg-lp-night sm:px-4"
           >
             Playground <ArrowUpRight size={14} aria-hidden="true" />
           </a>
@@ -550,58 +536,48 @@ function Navigation() {
 
 function Hero() {
   return (
-    <section className="mx-auto max-w-384 px-5 pt-12 sm:pt-16">
+    <section aria-labelledby="hero-heading" className="pt-6 sm:pt-9 lg:pt-12">
       <Frame>
-        <div className="grid gap-2.5 lg:grid-cols-[1.1fr_1fr]">
-          <div className="flex flex-col justify-between gap-14 rounded-xl border border-lp-line bg-lp-panel p-7 sm:p-10">
+        <div className="grid gap-4 lg:min-h-156 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="flex flex-col justify-between gap-10 rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-9 lg:p-10 xl:p-12">
             <div>
               <Eyebrow>Sandboxed Code Execution</Eyebrow>
-              <h1 className="mt-4 text-[36px] leading-[1.08] font-normal tracking-[-0.04em] text-lp-ink sm:text-[48px] lg:text-[44px] xl:text-[50px]">
-                Run <span className="text-lp-fade">untrusted code</span>
-                <br />
-                <span className="text-lp-fade">in a</span> Linux sandbox
+              <h1 id="hero-heading" className="mt-5 max-w-2xl text-4xl leading-[1.04] font-semibold tracking-[-0.055em] text-balance text-lp-ink sm:text-5xl xl:text-6xl 2xl:text-7xl">
+                Run untrusted code in a <span className="text-lp-accent">Linux sandbox</span>
               </h1>
-              <p className="mt-6 max-w-md text-[14px] leading-6 text-lp-body">
+              <p className="mt-6 max-w-xl text-base leading-7 text-lp-body xl:text-lg xl:leading-8">
                 Ferrum accepts source code over an HTTP API, queues it durably
                 in PostgreSQL, and compiles and runs it inside Isolate on
                 dedicated Linux workers. Pick a language, send stdin, and poll
                 for the verdict.
               </p>
-              <div className="mt-8 flex flex-wrap gap-2.5">
+              <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap">
                 <a
                   href="/playground"
-                  className="flex h-11 items-center gap-2 rounded-md bg-lp-night px-5 text-[13px] font-medium text-white transition-colors hover:bg-lp-night-raise"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-md bg-lp-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-lp-night"
                 >
                   Open playground <ArrowRight size={15} aria-hidden="true" />
                 </a>
                 <TextLink
                   href={doc('docs/submission-api.md')}
-                  className="flex h-11 items-center gap-2 rounded-md border border-lp-line bg-lp-card px-5 text-[13px] font-medium text-lp-ink transition-colors hover:border-lp-fade"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-lp-line bg-lp-card px-4 text-sm font-medium text-lp-ink transition-colors hover:border-lp-accent"
                 >
                   API documentation
+                  <ArrowUpRight size={15} aria-hidden="true" />
                 </TextLink>
               </div>
             </div>
-            <figure>
-              <span
-                aria-hidden="true"
-                className="block font-serif text-[52px] leading-none font-bold text-lp-ink"
-              >
-                “
-              </span>
-              <blockquote className="mt-1 max-w-md text-[17px] leading-7 tracking-[-0.01em] text-lp-ink">
+            <figure className="border-t border-lp-line pt-6">
+              <blockquote className="max-w-xl text-base leading-7 font-medium text-lp-ink xl:text-lg">
                 Correctness, isolation, recoverability and observability{' '}
                 <span className="text-lp-fade">
                   matter more than feature count or development speed.
                 </span>
               </blockquote>
-              <figcaption className="mt-5">
-                <p className="text-[13px] font-medium text-lp-ink">
-                  Ferrum project principle
-                </p>
-                <p className="text-[12px] text-lp-fade">
-                  Engineering guide, AGENTS.md
-                </p>
+              <figcaption className="mt-3">
+                <TextLink href={doc('AGENTS.md')} className="text-sm text-lp-fade underline-offset-4 hover:underline">
+                  Ferrum engineering guide
+                </TextLink>
               </figcaption>
             </figure>
           </div>
@@ -618,19 +594,16 @@ function Stack() {
       aria-labelledby="stack-heading"
       className="pt-8 sm:pt-10"
     >
-      <h2
-        id="stack-heading"
-        className="text-center text-[11px] font-medium tracking-[0.18em] text-lp-fade uppercase"
-      >
-        Built on proven infrastructure
+      <h2 id="stack-heading" className="mb-3 text-sm font-medium text-lp-body">
+        Technology stack
       </h2>
-      <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-9 gap-y-4">
+      <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-lp-line bg-lp-line sm:grid-cols-4 xl:grid-cols-8">
         {stack.map(([name, role]) => (
-          <li key={name} className="flex items-baseline gap-2">
-            <span className="text-[17px] font-medium tracking-[-0.02em] text-[#6e6e69]">
+          <li key={name} className="grid content-center gap-1 bg-lp-card px-4 py-4 lg:px-5">
+            <span className="text-sm font-semibold tracking-tight text-lp-ink">
               {name}
             </span>
-            <span className="font-mono text-[10px] text-lp-fade">{role}</span>
+            <span className="font-mono text-xs text-lp-fade">{role}</span>
           </li>
         ))}
       </ul>
@@ -675,17 +648,17 @@ function ApiVisual() {
     ['POST', '/v1/webhooks', 'Webhooks'],
   ];
   return (
-    <div className="h-full rounded-xl bg-lp-night p-5 sm:p-6">
+    <div className="min-w-0 rounded-xl border border-lp-night-line bg-lp-night p-5 sm:p-8 xl:p-10">
       <p className="font-mono text-[11px] text-lp-night-fade">Routes · /v1</p>
       <ul className="mt-4 divide-y divide-lp-night-line rounded-lg border border-lp-night-line">
         {rows.map(([method, path, label]) => (
           <li
             key={`${method}${path}`}
-            className="flex items-center gap-4 px-4 py-3 font-mono text-[12px]"
+            className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3 px-3 py-3 font-mono text-xs sm:px-4 lg:py-4 xl:grid-cols-[auto_minmax(0,1fr)_auto]"
           >
             <span className="w-14 text-lp-accent-soft">{method}</span>
-            <span className="flex-1 truncate text-lp-night-text">{path}</span>
-            <span className="hidden text-lp-night-fade sm:inline">{label}</span>
+            <span className="wrap-anywhere text-lp-night-text">{path}</span>
+            <span className="hidden text-lp-night-fade xl:inline">{label}</span>
           </li>
         ))}
       </ul>
@@ -695,7 +668,7 @@ function ApiVisual() {
 
 function PlaygroundVisual() {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-lp-line bg-lp-card">
+    <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-lp-line bg-lp-card">
       <div className="flex items-center justify-between border-b border-lp-line px-4 py-3 text-[12px]">
         <span className="font-medium text-lp-ink">
           Ferrum <span className="text-lp-fade">/ Playground</span>
@@ -704,8 +677,8 @@ function PlaygroundVisual() {
           <span className="size-1.5 rounded-md bg-lp-accent" /> Worker online
         </span>
       </div>
-      <div className="grid flex-1 sm:grid-cols-[1.4fr_1fr]">
-        <pre className="border-b border-lp-line p-4 font-mono text-[11.5px] leading-6 text-lp-ink sm:border-r sm:border-b-0">
+      <div className="grid flex-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <pre className="overflow-x-auto border-b border-lp-line p-5 font-mono text-xs leading-7 text-lp-ink sm:p-7 xl:border-r xl:border-b-0">
           <span className="text-lp-fade">1 </span>def greet(name):{'\n'}
           <span className="text-lp-fade">2 </span> return f"Hello, {'{name}'}!"
           {'\n'}
@@ -714,7 +687,7 @@ function PlaygroundVisual() {
           <span className="text-lp-fade">4 </span>print(greet(input().strip()))
           {'\n'}
         </pre>
-        <div className="grid content-start gap-3 bg-lp-panel p-4 text-[11.5px]">
+        <div className="grid content-start gap-4 bg-lp-panel p-5 text-sm sm:p-7">
           <div>
             <p className="font-medium text-lp-ink">Standard input</p>
             <p className="mt-1 rounded-md border border-lp-line bg-lp-card px-2.5 py-1.5 font-mono text-lp-body">
@@ -744,7 +717,7 @@ function JudgeVisual() {
     ['Case 4', 'time_limit_exceeded', '0 / 10'],
   ];
   return (
-    <div className="h-full rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-6">
+    <div className="min-w-0 rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-8 xl:p-10">
       <div className="flex items-center justify-between text-[12px]">
         <span className="font-medium text-lp-ink">Test cases</span>
         <span className="font-mono text-lp-body">score 20 / 50</span>
@@ -753,12 +726,12 @@ function JudgeVisual() {
         {cases.map(([name, verdict, score]) => (
           <li
             key={name}
-            className="flex items-center justify-between rounded-lg border border-lp-line bg-lp-card px-4 py-3 text-[12px]"
+            className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-lp-line bg-lp-card px-3 py-3 text-xs sm:px-4"
           >
             <span className="text-lp-ink">{name}</span>
-            <span className="flex items-center gap-4">
+            <span className="flex min-w-0 items-baseline gap-2 sm:gap-4">
               <span
-                className={`rounded-md px-2.5 py-0.5 font-mono text-[10.5px] ${
+                className={`rounded-md px-2 py-0.5 font-mono text-xs wrap-anywhere ${
                   verdict === 'accepted'
                     ? 'bg-lp-tint text-lp-accent'
                     : 'bg-lp-panel text-lp-body'
@@ -766,7 +739,7 @@ function JudgeVisual() {
               >
                 {verdict}
               </span>
-              <span className="w-12 text-right font-mono text-lp-fade">
+              <span className="shrink-0 text-right font-mono text-lp-fade sm:w-12">
                 {score}
               </span>
             </span>
@@ -798,7 +771,7 @@ function Products() {
         Integrate the API, experiment in the browser, or judge programs against
         test cases. Every path runs through the same sandbox.
       </SectionHeading>
-      <div className="mt-12 grid gap-6">
+      <div className="mt-8 grid gap-5 sm:mt-10 sm:gap-6">
         {products.map((product) => {
           const Visual = productVisuals[product.id];
           return (
@@ -809,10 +782,10 @@ function Products() {
                 >
                   <div>
                     <Eyebrow>{product.kind}</Eyebrow>
-                    <h3 className="mt-3 text-[28px] tracking-[-0.03em] text-lp-ink">
+                    <h3 className="mt-3 text-3xl font-semibold tracking-tight text-lp-ink xl:text-4xl">
                       {product.name}
                     </h3>
-                    <p className="mt-4 text-[14px] leading-6 text-lp-body">
+                    <p className="mt-4 max-w-prose text-base leading-7 text-lp-body">
                       {product.summary}
                     </p>
                     <div className="mt-6">
@@ -854,11 +827,11 @@ function Languages() {
         {languages.map((language) => (
           <li
             key={language.name}
-            className="rounded-xl border border-lp-line bg-lp-card p-6"
+            className="flex min-h-52 flex-col rounded-xl border border-lp-line bg-lp-card p-5 sm:p-7 xl:p-8"
           >
-            <div className="flex items-start justify-between">
+            <div className="mb-6 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-[18px] tracking-[-0.02em] text-lp-ink">
+                <h3 className="text-xl font-semibold tracking-tight text-lp-ink">
                   {language.name}
                 </h3>
                 <p className="mt-1 font-mono text-[11.5px] text-lp-fade">
@@ -869,7 +842,7 @@ function Languages() {
                 {language.mode}
               </span>
             </div>
-            <dl className="mt-6 grid grid-cols-2 gap-3 border-t border-lp-line pt-4 text-[12px]">
+            <dl className="mt-auto grid grid-cols-2 gap-3 border-t border-lp-line pt-4 text-sm">
               <div>
                 <dt className="text-lp-fade">CPU ceiling</dt>
                 <dd className="mt-0.5 font-mono text-lp-ink">{language.cpu}</dd>
@@ -895,13 +868,13 @@ function Lifecycle() {
       className="pt-20 sm:pt-26 lg:pt-32"
     >
       <Frame>
-        <div className="rounded-xl bg-lp-night p-7 sm:p-10">
+        <div className="rounded-xl border border-lp-night-line bg-lp-night p-5 sm:p-9 xl:p-12">
           <p className="text-[12px] font-medium text-lp-accent-soft">
             How it works
           </p>
           <h2
             id="lifecycle-heading"
-            className="mt-3 max-w-2xl text-[30px] leading-[1.1] tracking-[-0.035em] text-white sm:text-[38px]"
+            className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl xl:text-5xl"
           >
             From request to verdict,{' '}
             <span className="text-lp-night-fade">
@@ -910,7 +883,7 @@ function Lifecycle() {
           </h2>
           <ol className="mt-10 grid gap-px overflow-hidden rounded-lg border border-lp-night-line bg-lp-night-line sm:grid-cols-2 lg:grid-cols-3">
             {lifecycle.map(([title, text], index) => (
-              <li key={title} className="bg-lp-night p-6">
+              <li key={title} className="min-h-40 bg-lp-night p-5 sm:p-7">
                 <span className="font-mono text-[11px] text-lp-night-fade">
                   {String(index + 1).padStart(2, '0')}
                 </span>
@@ -942,12 +915,12 @@ function Security() {
         {controls.map(({ icon: Icon, title, text }) => (
           <li
             key={title}
-            className="rounded-xl border border-lp-line bg-lp-card p-6"
+            className="flex min-h-52 flex-col rounded-xl border border-lp-line bg-lp-card p-5 sm:p-7 xl:p-8"
           >
             <span className="grid size-9 place-items-center rounded-lg bg-lp-panel text-lp-ink">
               <Icon size={17} aria-hidden="true" />
             </span>
-            <h3 className="mt-5 text-[15px] text-lp-ink">{title}</h3>
+            <h3 className="mt-5 text-lg font-semibold text-lp-ink">{title}</h3>
             <p className="mt-1.5 text-sm leading-6 text-lp-body">{text}</p>
           </li>
         ))}
@@ -971,16 +944,16 @@ function Deploy() {
         {deployments.map((plan) => (
           <article
             key={plan.name}
-            className={`flex flex-col justify-between gap-8 rounded-xl p-7 ${
+            className={`flex min-h-105 flex-col justify-between gap-8 rounded-xl border p-6 sm:p-8 xl:p-9 ${
               plan.featured
-                ? 'bg-lp-night text-white '
-                : 'border border-lp-line bg-lp-card'
+                ? 'border-lp-night-line bg-lp-night text-white'
+                : 'border-lp-line bg-lp-card'
             }`}
           >
             <div>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3
-                  className={`text-[18px] ${plan.featured ? 'text-white' : 'text-lp-ink'}`}
+                  className={`text-xl font-semibold ${plan.featured ? 'text-white' : 'text-lp-ink'}`}
                 >
                   {plan.name}
                 </h3>
@@ -995,12 +968,12 @@ function Deploy() {
                 </span>
               </div>
               <p
-                className={`mt-2 text-sm leading-6 ${plan.featured ? 'text-lp-night-fade' : 'text-lp-body'}`}
+                className={`mt-3 text-sm leading-6 lg:min-h-12 ${plan.featured ? 'text-lp-night-fade' : 'text-lp-body'}`}
               >
                 {plan.summary}
               </p>
               <p
-                className={`mt-7 text-[30px] tracking-[-0.035em] ${plan.featured ? 'text-white' : 'text-lp-ink'}`}
+                className={`mt-6 text-2xl font-semibold tracking-tight xl:text-3xl ${plan.featured ? 'text-white' : 'text-lp-ink'}`}
               >
                 {plan.headline}
               </p>
@@ -1042,13 +1015,13 @@ function Support() {
         {support.map(({ icon: Icon, title, text, meta, action }) => (
           <article
             key={title}
-            className="flex flex-col justify-between gap-8 rounded-xl border border-lp-line bg-lp-card p-7"
+            className="flex min-h-76 flex-col justify-between gap-8 rounded-xl border border-lp-line bg-lp-card p-6 sm:p-8 xl:p-9"
           >
             <div>
               <span className="grid size-10 place-items-center rounded-lg bg-lp-panel text-lp-ink">
                 <Icon size={18} aria-hidden="true" />
               </span>
-              <h3 className="mt-6 text-[18px] text-lp-ink">{title}</h3>
+              <h3 className="mt-6 text-xl font-semibold text-lp-ink">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-lp-body">
                 {text}
               </p>
@@ -1080,14 +1053,14 @@ function CallToAction() {
   return (
     <section className="pt-20 sm:pt-26 lg:pt-32">
       <Frame>
-        <div className="grid gap-8 rounded-xl border border-lp-line bg-lp-panel p-7 sm:p-10 lg:grid-cols-[1.4fr_1fr] lg:items-end">
+        <div className="grid min-h-58 items-center gap-8 rounded-xl border border-lp-line bg-lp-panel p-6 sm:p-9 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:p-12">
           <div>
             <Eyebrow>Get started</Eyebrow>
-            <h2 className="mt-3 text-[30px] leading-[1.1] tracking-[-0.035em] text-lp-ink sm:text-[40px]">
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-lp-ink sm:text-4xl xl:text-5xl">
               Run your first program{' '}
               <span className="text-lp-fade">in under a minute</span>
             </h2>
-            <p className="mt-4 max-w-lg text-[14px] leading-6 text-lp-body">
+            <p className="mt-4 max-w-lg text-base leading-7 text-lp-body">
               Start the API and a worker, open the playground, and press Ctrl /
               ⌘ + Enter. The same request works from any HTTP client.
             </p>
