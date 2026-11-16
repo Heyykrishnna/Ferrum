@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::languages::{LanguageProfile, resolve_language, resolve_revision};
+
 const MAX_INPUT_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Default, Deserialize)]
@@ -27,6 +29,7 @@ pub struct EffectiveLimits {
 }
 
 pub struct SubmissionInput {
+    profile: &'static LanguageProfile,
     source: String,
     stdin: String,
     limits: EffectiveLimits,
@@ -36,31 +39,33 @@ pub struct SubmissionInput {
 pub enum ValidationError {
     #[error("unsupported resolved runtime profile")]
     Profile,
-    #[error("language must be python")]
+    #[error("unsupported language")]
     Language,
     #[error("source must contain 1 to 65536 UTF-8 bytes and no NUL characters")]
     Source,
     #[error("stdin must contain at most 65536 UTF-8 bytes and no NUL characters")]
     Stdin,
-    #[error(
-        "limits require CPU 1–2000 ms, wall 1–6000 ms and memory 1–131072 KiB; wall time must be at least CPU time"
-    )]
+    #[error("limits exceed the selected language policy or wall time is below CPU time")]
     Limits,
 }
 
 impl SubmissionInput {
-    pub const LANGUAGE: &str = "python";
-    pub const PROFILE: &str = "python3.13-v1";
-
     pub fn new(
         language: &str,
         source: String,
         stdin: Option<String>,
         requested: RequestedLimits,
     ) -> Result<Self, ValidationError> {
-        if language != Self::LANGUAGE {
-            return Err(ValidationError::Language);
-        }
+        let profile = resolve_language(language).ok_or(ValidationError::Language)?;
+        Self::with_profile(profile, source, stdin, requested)
+    }
+
+    fn with_profile(
+        profile: &'static LanguageProfile,
+        source: String,
+        stdin: Option<String>,
+        requested: RequestedLimits,
+    ) -> Result<Self, ValidationError> {
         if source.is_empty() || source.len() > MAX_INPUT_BYTES || source.contains('\0') {
             return Err(ValidationError::Source);
         }
@@ -68,27 +73,22 @@ impl SubmissionInput {
         if stdin.len() > MAX_INPUT_BYTES || stdin.contains('\0') {
             return Err(ValidationError::Stdin);
         }
+        let ceilings = &profile.run_limits;
         let limits = EffectiveLimits {
-            cpu_time_ms: requested.cpu_time_ms.unwrap_or(2_000),
-            wall_time_ms: requested.wall_time_ms.unwrap_or(6_000),
-            memory_kib: requested.memory_kib.unwrap_or(131_072),
-            stack_kib: 8_192,
-            processes: 1,
-            open_files: 64,
-            file_bytes: 65_536,
-            workspace_kib: 4_096,
-            workspace_inodes: 128,
-            stdout_bytes: 65_536,
-            stderr_bytes: 65_536,
+            cpu_time_ms: requested.cpu_time_ms.unwrap_or(ceilings.cpu_time_ms),
+            wall_time_ms: requested.wall_time_ms.unwrap_or(ceilings.wall_time_ms),
+            memory_kib: requested.memory_kib.unwrap_or(ceilings.memory_kib),
+            ..ceilings.clone()
         };
-        if !(1..=2_000).contains(&limits.cpu_time_ms)
-            || !(limits.cpu_time_ms..=6_000).contains(&limits.wall_time_ms)
-            || !(1..=131_072).contains(&limits.memory_kib)
+        if !(1..=ceilings.cpu_time_ms).contains(&limits.cpu_time_ms)
+            || !(limits.cpu_time_ms..=ceilings.wall_time_ms).contains(&limits.wall_time_ms)
+            || !(1..=ceilings.memory_kib).contains(&limits.memory_kib)
         {
             return Err(ValidationError::Limits);
         }
 
         Ok(Self {
+            profile,
             source,
             stdin,
             limits,
@@ -96,16 +96,18 @@ impl SubmissionInput {
     }
 
     pub fn from_persisted(
-        profile: &str,
+        language: &str,
+        revision: &str,
         source: String,
         stdin: String,
         limits: EffectiveLimits,
     ) -> Result<Self, ValidationError> {
-        if profile != Self::PROFILE {
+        let profile = resolve_revision(revision).ok_or(ValidationError::Profile)?;
+        if profile.language != language {
             return Err(ValidationError::Profile);
         }
-        let input = Self::new(
-            Self::LANGUAGE,
+        let input = Self::with_profile(
+            profile,
             source,
             Some(stdin),
             RequestedLimits {
@@ -118,6 +120,10 @@ impl SubmissionInput {
             return Err(ValidationError::Limits);
         }
         Ok(input)
+    }
+
+    pub fn profile(&self) -> &'static LanguageProfile {
+        self.profile
     }
 
     pub fn source(&self) -> &str {
@@ -138,6 +144,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn registry_profiles_rehydrate_only_their_own_language_and_limits() {
+        for profile in crate::LANGUAGES {
+            let input = SubmissionInput::new(
+                profile.language,
+                "source".into(),
+                None,
+                RequestedLimits::default(),
+            )
+            .unwrap();
+            let reconstruct = |language, limits| {
+                SubmissionInput::from_persisted(
+                    language,
+                    profile.revision,
+                    "source".into(),
+                    String::new(),
+                    limits,
+                )
+            };
+            assert!(reconstruct(profile.language, input.limits().clone()).is_ok());
+            assert!(matches!(
+                reconstruct("unrecognized", input.limits().clone()),
+                Err(ValidationError::Profile)
+            ));
+            let mut tampered = input.limits().clone();
+            tampered.memory_kib += 1;
+            assert!(matches!(
+                reconstruct(profile.language, tampered),
+                Err(ValidationError::Limits)
+            ));
+        }
+    }
+
+    #[test]
     fn persisted_profile_and_policy_are_revalidated() {
         let input = SubmissionInput::new(
             "python",
@@ -149,6 +188,7 @@ mod tests {
         let mut persisted = input.limits().clone();
         assert!(
             SubmissionInput::from_persisted(
+                "python",
                 "python3.13-v1",
                 input.source().into(),
                 "".into(),
@@ -159,6 +199,7 @@ mod tests {
         persisted.processes = 2;
         assert!(
             SubmissionInput::from_persisted(
+                "python",
                 "python3.13-v1",
                 input.source().into(),
                 "".into(),
@@ -168,6 +209,7 @@ mod tests {
         );
         assert!(
             SubmissionInput::from_persisted(
+                "python",
                 "other-profile",
                 input.source().into(),
                 "".into(),
