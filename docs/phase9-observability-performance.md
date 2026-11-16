@@ -131,6 +131,15 @@ python3 tests/phase9/load-and-metrics-smoke.py --count 100
 
 The harness sends sequential requests in stages of up to 25. It cancels the submissions through the API after each stage to free capacity under the tenant quota. Reported throughput and percentiles cover intake and exclude cancellation time. Worker throughput and end-to-end latency require a separate run on a qualified Linux worker.
 
+Verify the Prometheus API failure-rate alert with synthetic request counters:
+
+```bash
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+  --entrypoint /bin/promtool \
+  --mount "type=bind,src=$PWD/deployment/prometheus,dst=/rules,readonly" \
+  prom/prometheus:v3.2.1 test rules /rules/alerts.test.yml
+```
+
 ### Verification Evidence
 
 - **Metric Scrapes:** 30 metric families verified on `GET /metrics`.

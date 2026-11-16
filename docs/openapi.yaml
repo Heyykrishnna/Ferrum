@@ -4,13 +4,15 @@ info:
   version: 0.1.0
   description: High-performance, isolated code execution and judging platform inspired by Judge0.
 servers:
-  - url: http://127.0.0.1:3000
+  - url: http://127.0.0.1:8080
     description: Local development server
 paths:
   /v1/languages:
     get:
       summary: List supported languages and runtime limits
       operationId: listLanguages
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: List of available language environments
@@ -20,6 +22,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/LanguageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /v1/submissions:
     post:

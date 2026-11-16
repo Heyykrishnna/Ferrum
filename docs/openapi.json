@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:3000",
+      "url": "http://127.0.0.1:8080",
       "description": "Local development server"
     }
   ],
@@ -16,6 +16,11 @@
       "get": {
         "summary": "List supported languages and runtime limits",
         "operationId": "listLanguages",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "List of available language environments",
@@ -29,6 +34,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }

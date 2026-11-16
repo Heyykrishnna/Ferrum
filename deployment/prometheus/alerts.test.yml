@@ -1,0 +1,37 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 5s
+
+tests:
+  - name: API failure rate below threshold
+    interval: 5s
+    input_series:
+      - series: 'ferrum_http_requests_total{method="POST",path="/v1/submissions",status="202"}'
+        values: '0+99x24'
+      - series: 'ferrum_http_requests_total{method="GET",path="/v1/languages",status="500"}'
+        values: '0+1x24'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: FerrumPlatformHighFailureRate
+        exp_alerts: []
+
+  - name: API failure rate above threshold
+    interval: 5s
+    input_series:
+      - series: 'ferrum_http_requests_total{method="POST",path="/v1/submissions",status="202"}'
+        values: '0+90x24'
+      - series: 'ferrum_http_requests_total{method="GET",path="/v1/languages",status="500"}'
+        values: '0+10x24'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: FerrumPlatformHighFailureRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              tier: api
+            exp_annotations:
+              summary: "API HTTP 5xx error rate exceeds 5%"
+              description: "High error rate observed in public API endpoint responses."
+              runbook_url: "docs/runbooks/isolation-incident-containment.md"
+              owner: "api-oncall"

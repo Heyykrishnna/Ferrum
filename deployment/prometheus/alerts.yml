@@ -38,7 +38,7 @@ groups:
           owner: "capacity-oncall"
 
       - alert: FerrumPlatformHighFailureRate
-        expr: (rate(ferrum_http_requests_total{status=~"5.."}[1m]) / (rate(ferrum_http_requests_total[1m]) + 0.001)) > 0.05
+        expr: sum(rate(ferrum_http_requests_total{status=~"5.."}[1m])) / sum(rate(ferrum_http_requests_total[1m])) > 0.05
         for: 30s
         labels:
           severity: critical
