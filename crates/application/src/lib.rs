@@ -10,6 +10,8 @@ pub enum SubmissionError {
     InvalidIdempotencyKey,
     #[error("this idempotency key was already used with a different request")]
     IdempotencyConflict,
+    #[error("batch limit exceeded")]
+    BatchLimitExceeded,
     #[error("submission storage is unavailable")]
     Unavailable,
     #[error("could not store or read the submission")]
@@ -45,6 +47,10 @@ impl IdempotencyKey {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
     }
 }
 

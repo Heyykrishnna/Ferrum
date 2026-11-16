@@ -1,8 +1,9 @@
 use ferrum_application::{IdempotencyKey, SubmissionError, SubmissionRepository};
 use ferrum_contracts::SubmissionCreated;
 use ferrum_domain::{
-    CaseContent, CaseFinding, CaseTelemetry, ProcessingState, Submission, SubmissionInput,
-    SubmissionResult, SubmissionStageResult, Verdict,
+    BatchItemResult, BatchSubmissionResult, CaseContent, CaseFinding, CaseTelemetry,
+    ProcessingState, Submission, SubmissionCancelOutcome, SubmissionInput, SubmissionResult,
+    SubmissionStageResult, Verdict, MAX_BATCH_SIZE,
 };
 use sqlx::{PgPool, types::Json};
 use uuid::Uuid;
@@ -180,6 +181,10 @@ impl StoredStage {
 }
 
 impl PostgresSubmissions {
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     pub async fn is_ready(&self) -> bool {
         crate::database_ready(&self.pool).await
     }
@@ -194,6 +199,140 @@ impl PostgresSubmissions {
                 DatabaseError::Initialize
             })?;
         Ok(Self { pool })
+    }
+
+    pub async fn check_tenant_concurrency(
+        &self,
+        organization_id: Uuid,
+        max_active: i64,
+    ) -> Result<bool, SubmissionError> {
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM submissions
+             WHERE organization_id = $1 AND state IN ('created', 'queued', 'processing')",
+        )
+        .bind(organization_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(storage_error)?;
+
+        Ok(count.0 < max_active)
+    }
+
+    pub async fn cancel(
+        &self,
+        organization_id: Uuid,
+        submission_id: Uuid,
+    ) -> Result<Option<SubmissionCancelOutcome>, SubmissionError> {
+        let mut tx = self.pool.begin().await.map_err(storage_error)?;
+        let row = sqlx::query_as::<_, (String, bool)>(
+            "SELECT state, cancel_requested FROM submissions
+             WHERE organization_id = $1 AND id = $2 FOR UPDATE",
+        )
+        .bind(organization_id)
+        .bind(submission_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(storage_error)?;
+
+        let Some((state, cancel_requested)) = row else {
+            return Ok(None);
+        };
+
+        let outcome = match state.as_str() {
+            "created" | "queued" => {
+                sqlx::query(
+                    "UPDATE submissions
+                     SET state = 'cancelled', cancel_requested = true, updated_at = clock_timestamp()
+                     WHERE organization_id = $1 AND id = $2",
+                )
+                .bind(organization_id)
+                .bind(submission_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(storage_error)?;
+
+                let event_id = Uuid::new_v4();
+                sqlx::query(
+                    "INSERT INTO outbox_events (id, organization_id, submission_id, event_type, event_version)
+                     VALUES ($1, $2, $3, $4, $5)",
+                )
+                .bind(event_id)
+                .bind(organization_id)
+                .bind(submission_id)
+                .bind("submission.cancelled")
+                .bind(1i16)
+                .execute(&mut *tx)
+                .await
+                .map_err(storage_error)?;
+
+                SubmissionCancelOutcome::Cancelled
+            }
+            "processing" => {
+                if !cancel_requested {
+                    sqlx::query(
+                        "UPDATE submissions
+                         SET cancel_requested = true, updated_at = clock_timestamp()
+                         WHERE organization_id = $1 AND id = $2",
+                    )
+                    .bind(organization_id)
+                    .bind(submission_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(storage_error)?;
+                }
+                SubmissionCancelOutcome::CancellationRequested
+            }
+            _ => SubmissionCancelOutcome::AlreadyTerminal,
+        };
+
+        tx.commit().await.map_err(storage_error)?;
+        Ok(Some(outcome))
+    }
+
+    pub async fn create_batch(
+        &self,
+        organization_id: Uuid,
+        items: Vec<(IdempotencyKey, SubmissionInput)>,
+    ) -> Result<BatchSubmissionResult, SubmissionError> {
+        if items.len() > MAX_BATCH_SIZE {
+            return Err(SubmissionError::BatchLimitExceeded);
+        }
+
+        let mut results = Vec::with_capacity(items.len());
+        for (key, input) in items {
+            let key_str = key.as_str().to_string();
+            match self.create(organization_id, key, input).await {
+                Ok(sub) => {
+                    results.push(BatchItemResult {
+                        idempotency_key: key_str,
+                        id: Some(sub.id),
+                        state: Some(sub.state),
+                        error: None,
+                    });
+                }
+                Err(SubmissionError::IdempotencyConflict) => {
+                    results.push(BatchItemResult {
+                        idempotency_key: key_str,
+                        id: None,
+                        state: None,
+                        error: Some("idempotency_conflict".to_string()),
+                    });
+                }
+                Err(SubmissionError::Unavailable) => {
+                    return Err(SubmissionError::Unavailable);
+                }
+                Err(err) => {
+                    results.push(BatchItemResult {
+                        idempotency_key: key_str,
+                        id: None,
+                        state: None,
+                        error: Some(err.to_string()),
+                    });
+                }
+            }
+        }
+
+        Ok(BatchSubmissionResult { items: results })
     }
 }
 
