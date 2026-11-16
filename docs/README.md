@@ -9,4 +9,5 @@
 - [Phase 5 language runtimes](phase5-languages.md) lists the profiles, resource policies and verification commands.
 - [Phase 6 judging engine](phase6-judging.md) explains comparators, test suites, scoring, verdict aggregation, and privacy.
 - [Phase 7 production API](phase7-production-api.md) documents API keys, scopes, quotas, batch intake, cancellation, webhooks, and the OpenAPI specification.
+- [Phase 8 security hardening](phase8-security-hardening.md) details sterile environments, path traversal guards, stale lease reconciliation, sandbox quarantine, and [operational runbooks](runbooks/).
 - [First milestone](first-milestone.md): the initial contract and integration acceptance cases.

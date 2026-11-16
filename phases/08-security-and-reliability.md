@@ -24,9 +24,9 @@ Demonstrate that a worker failure or rejected workload leaves Ferrum in a recove
 
 ## Acceptance checks
 
-- [ ] The supported Linux profile passes the isolation and recovery matrix.
-- [ ] No recovery drill leaves an untracked attempt or sandbox.
-- [ ] Runbooks are exercised and record the evidence required to resume service.
-- [ ] Security review findings have owners and release blockers are addressed before exposure.
+- [x] The supported Linux profile passes the isolation and recovery matrix.
+- [x] No recovery drill leaves an untracked attempt or sandbox.
+- [x] Runbooks are exercised and record the evidence required to resume service.
+- [x] Security review findings have owners and release blockers are addressed before exposure.
 
 **Handoff** · Measure recovery and saturation with staging observability and representative workloads. [Phase 9](09-observability-and-performance.md)
