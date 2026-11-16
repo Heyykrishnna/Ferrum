@@ -197,6 +197,9 @@ async fn create(
         .check_tenant_concurrency(auth.organization_id, 50)
         .await?;
     if !admitted {
+        ferrum_runtime::MetricsRegistry::global()
+            .rate_limit_rejections_total
+            .inc(&[("reason", "concurrency_quota")]);
         return Err(ApiError::too_many_requests(
             "tenant_quota_exceeded",
             "Concurrent submission quota exceeded for organization",
@@ -212,14 +215,20 @@ async fn create(
         request.stdin.as_deref(),
         request.comparison_mode,
     );
+    let trace_header = headers.get("traceparent").and_then(|v| v.to_str().ok());
+    let trace_ctx = ferrum_domain::TraceContext::from_traceparent_or_generate(trace_header);
     let input = SubmissionInput::with_stdin_and_cases(
         &request.language,
         request.source,
         request.stdin,
         cases,
         request.limits,
-    )?;
+    )?
+    .with_traceparent(Some(trace_ctx.to_traceparent()));
     let submission = repository.create(auth.organization_id, key, input).await?;
+    ferrum_runtime::MetricsRegistry::global()
+        .submissions_created_total
+        .inc(&[("language", &request.language)]);
     let location = format!("/v1/submissions/{}", submission.id);
     Ok((
         StatusCode::ACCEPTED,

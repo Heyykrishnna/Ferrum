@@ -1,6 +1,7 @@
 mod api_keys;
 mod auth;
 mod health;
+mod metrics;
 mod submissions;
 mod webhooks;
 
@@ -57,7 +58,8 @@ async fn serve() -> Result<(), Box<dyn Error + Send + Sync>> {
         submission_state
             .as_ref()
             .map(|(repository, _)| repository.clone()),
-    );
+    )
+    .merge(metrics::router());
     if let Some((repository, caller)) = submission_state {
         let caller_arc = Arc::new(caller.clone());
         router = router
@@ -65,6 +67,7 @@ async fn serve() -> Result<(), Box<dyn Error + Send + Sync>> {
             .merge(api_keys::router(repository.clone(), caller_arc.clone()))
             .merge(webhooks::router(repository, caller_arc));
     }
+    let router = router.layer(axum::middleware::from_fn(metrics::track_http_metrics));
 
     tracing::info!(
         event = "api_listening",

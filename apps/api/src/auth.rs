@@ -35,6 +35,9 @@ pub async fn authenticate(
         });
 
     let Some(raw_token) = token else {
+        ferrum_runtime::MetricsRegistry::global()
+            .auth_failures_total
+            .inc(&[("reason", "missing_token")]);
         return ApiError::unauthorized().into_response();
     };
 
@@ -42,11 +45,19 @@ pub async fn authenticate(
         match ferrum_infrastructure::authenticate_api_key(state.repository.pool(), raw_token).await
         {
             Ok(Some(ctx)) => ctx,
-            _ => return ApiError::unauthorized().into_response(),
+            _ => {
+                ferrum_runtime::MetricsRegistry::global()
+                    .auth_failures_total
+                    .inc(&[("reason", "invalid_api_key")]);
+                return ApiError::unauthorized().into_response();
+            }
         }
     } else if bool::from(raw_token.as_bytes().ct_eq(state.caller.token.as_bytes())) {
         AuthContext::full_access(state.caller.organization_id)
     } else {
+        ferrum_runtime::MetricsRegistry::global()
+            .auth_failures_total
+            .inc(&[("reason", "invalid_dev_token")]);
         return ApiError::unauthorized().into_response();
     };
 
