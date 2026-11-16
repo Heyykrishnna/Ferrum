@@ -16,6 +16,18 @@ pub enum SubmissionError {
     Storage,
 }
 
+#[derive(Debug, Error)]
+pub enum ExecutionError {
+    #[error("execution storage is unavailable")]
+    Unavailable,
+    #[error("could not read or update execution attempt")]
+    Storage,
+    #[error("submission not found")]
+    NotFound,
+    #[error("attempt lease expired or ownership lost")]
+    StaleLease,
+}
+
 pub struct IdempotencyKey(String);
 
 impl IdempotencyKey {
