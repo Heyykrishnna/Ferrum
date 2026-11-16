@@ -17,11 +17,11 @@ Deliver a documented HTTPS/JSON surface for web apps, IDEs, CLIs, LMS integratio
 
 ## Acceptance checks
 
-- [ ] Tenant scope holds for create, read, list, batch, cancel and webhook configuration under cross-tenant tests.
-- [ ] Expired, revoked and under-scoped keys fail. Logs and persisted records contain no raw API keys.
-- [ ] Over-limit requests and duplicate or conflicting batch inputs follow the documented contract.
-- [ ] Repeated cancellation and completion races produce one stable terminal outcome.
-- [ ] Webhook signatures, deduplication, retry limits and destination/egress policy are tested before arbitrary destinations are enabled.
-- [ ] OpenAPI matches the deployed staging behavior.
+- [x] Tenant scope holds for create, read, list, batch, cancel and webhook configuration under cross-tenant tests.
+- [x] Expired, revoked and under-scoped keys fail. Logs and persisted records contain no raw API keys.
+- [x] Over-limit requests and duplicate or conflicting batch inputs follow the documented contract.
+- [x] Repeated cancellation and completion races produce one stable terminal outcome.
+- [x] Webhook signatures, deduplication, retry limits and destination/egress policy are tested before arbitrary destinations are enabled.
+- [x] OpenAPI matches the deployed staging behavior.
 
 **Handoff** · Exercise the complete staging surface under security and operational failure scenarios. [Phase 8](08-security-and-reliability.md)
