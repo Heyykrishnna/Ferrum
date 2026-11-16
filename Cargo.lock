@@ -468,6 +468,7 @@ dependencies = [
  "ferrum-config",
  "ferrum-contracts",
  "ferrum-domain",
+ "ferrum-judge",
  "ferrum-sandbox",
  "serde_json",
  "sqlx",
@@ -475,6 +476,16 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "ferrum-judge"
+version = "0.1.0"
+dependencies = [
+ "ferrum-domain",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -494,6 +505,7 @@ name = "ferrum-sandbox"
 version = "0.1.0"
 dependencies = [
  "ferrum-domain",
+ "ferrum-judge",
  "rustix",
  "thiserror",
  "tokio",

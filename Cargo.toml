@@ -7,6 +7,7 @@ members = [
     "crates/contracts",
     "crates/domain",
     "crates/infrastructure",
+    "crates/judge",
     "crates/runtime",
     "crates/sandbox",
 ]
@@ -27,6 +28,7 @@ ferrum-config = { path = "crates/config" }
 ferrum-contracts = { path = "crates/contracts" }
 ferrum-domain = { path = "crates/domain" }
 ferrum-infrastructure = { path = "crates/infrastructure" }
+ferrum-judge = { path = "crates/judge" }
 ferrum-runtime = { path = "crates/runtime" }
 ferrum-sandbox = { path = "crates/sandbox" }
 serde = { version = "=1.0.229", features = ["derive"] }
