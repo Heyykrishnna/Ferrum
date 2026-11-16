@@ -28,6 +28,14 @@ pub struct ExecutionResult {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub facts: ExecutionFacts,
+    pub compilation: Option<StageResult>,
+}
+
+pub struct StageResult {
+    pub outcome: ProgramOutcome,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+    pub facts: ExecutionFacts,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -48,12 +56,29 @@ pub enum OutputStream {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramOutcome {
     Success,
+    CompilationError,
     RuntimeError,
     CpuTimeLimit,
     WallTimeLimit,
     MemoryLimit,
     OutputLimit(OutputStream),
     Cancelled,
+}
+
+impl ProgramOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::CompilationError => "compilation_error",
+            Self::RuntimeError => "runtime_error",
+            Self::CpuTimeLimit => "cpu_time_limit",
+            Self::WallTimeLimit => "wall_time_limit",
+            Self::MemoryLimit => "memory_limit",
+            Self::OutputLimit(OutputStream::Stdout) => "output_limit_stdout",
+            Self::OutputLimit(OutputStream::Stderr) => "output_limit_stderr",
+            Self::Cancelled => "cancelled",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,7 +108,7 @@ pub enum SandboxError {
     RecoveryRequired,
     #[error("Isolate could not initialize a sandbox with the required controls")]
     Initialize,
-    #[error("could not stage the validated Python input")]
+    #[error("could not stage the validated submission input")]
     Stage,
     #[error("the sandbox supervisor failed")]
     Supervisor,
