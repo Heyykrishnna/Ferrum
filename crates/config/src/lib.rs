@@ -13,6 +13,7 @@ use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 
 const DEFAULT_SHUTDOWN_MS: u64 = 10_000;
+const WORKER_SHUTDOWN_MS: u64 = 30_000;
 const MAX_SHUTDOWN_MS: u64 = 60_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +106,11 @@ struct ProcessFile {
 impl ApiSettings {
     pub fn load() -> Result<Self, ConfigError> {
         let file: ApiFile = read_file("FERRUM_API_CONFIG")?;
-        let process = resolve_process(file.process, "FERRUM_API_SHUTDOWN_TIMEOUT_MS")?;
+        let process = resolve_process(
+            file.process,
+            "FERRUM_API_SHUTDOWN_TIMEOUT_MS",
+            DEFAULT_SHUTDOWN_MS,
+        )?;
         let listen_addr = match read_env("FERRUM_API_LISTEN_ADDR")?.or(file.listen_addr) {
             Some(value) => value.parse().map_err(|_| ConfigError::InvalidSetting {
                 setting: "listen_addr (FERRUM_API_LISTEN_ADDR)",
@@ -156,7 +161,11 @@ impl WorkerSettings {
     pub fn load() -> Result<Self, ConfigError> {
         let file: WorkerFile = read_file("FERRUM_WORKER_CONFIG")?;
         Ok(Self {
-            process: resolve_process(file.process, "FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS")?,
+            process: resolve_process(
+                file.process,
+                "FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS",
+                WORKER_SHUTDOWN_MS,
+            )?,
         })
     }
 }
@@ -164,6 +173,7 @@ impl WorkerSettings {
 fn resolve_process(
     file: ProcessFile,
     timeout_variable: &'static str,
+    default_timeout_ms: u64,
 ) -> Result<ProcessSettings, ConfigError> {
     let mode = match read_env("FERRUM_MODE")?.or(file.mode).as_deref() {
         None | Some("development") => Mode::Development,
@@ -194,7 +204,7 @@ fn resolve_process(
     };
     let timeout_ms = match read_env(timeout_variable)? {
         Some(value) => value.parse().map_err(|_| invalid_timeout())?,
-        None => file.shutdown_timeout_ms.unwrap_or(DEFAULT_SHUTDOWN_MS),
+        None => file.shutdown_timeout_ms.unwrap_or(default_timeout_ms),
     };
     if !(1..=MAX_SHUTDOWN_MS).contains(&timeout_ms) {
         return Err(invalid_timeout());
