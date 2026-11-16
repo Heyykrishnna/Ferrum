@@ -87,11 +87,11 @@ fn poll_output(
     let mut kill_at = end;
     let mut reap_at = None;
     loop {
-        stdout.read_once()?;
-        stderr.read_once()?;
         if status.is_none() {
             status = child.try_wait().map_err(|_| ProcessError::Io)?;
         }
+        stdout.read_once()?;
+        stderr.read_once()?;
         let now = Instant::now();
         let output_stop = if stdout.exceeded {
             Some(Stop::Output(OutputStream::Stdout))
