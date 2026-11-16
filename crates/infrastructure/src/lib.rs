@@ -1,3 +1,5 @@
+pub mod dispatcher;
+pub mod execution;
 mod submissions;
 
 use std::time::Duration;
@@ -10,6 +12,11 @@ use sqlx::{
 };
 use thiserror::Error;
 
+pub use dispatcher::{dispatch_execution, execution_queue, setup_apalis};
+pub use execution::{
+    AttemptReport, ExecutionError, ExecutionInput, ExecutionOwner, claim_execution,
+    finalize_execution, recover_after_host_probe, renew_attempt_lease,
+};
 pub use submissions::PostgresSubmissions;
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");

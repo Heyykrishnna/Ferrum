@@ -18,6 +18,8 @@ rust-version = "1.100.0"
 publish = false
 
 [workspace.dependencies]
+apalis = "=1.0.0"
+apalis-postgres = "=1.0.0"
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 ferrum-application = { path = "crates/application" }
 ferrum-config = { path = "crates/config" }
@@ -25,7 +27,9 @@ ferrum-contracts = { path = "crates/contracts" }
 ferrum-domain = { path = "crates/domain" }
 ferrum-infrastructure = { path = "crates/infrastructure" }
 ferrum-runtime = { path = "crates/runtime" }
+ferrum-sandbox = { path = "crates/sandbox" }
 serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
 sqlx = { version = "=0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring-native-roots", "macros", "migrate", "uuid", "json"] }
 subtle = "=2.6.1"
 thiserror = "=2.0.21"
@@ -35,4 +39,4 @@ toml = "=0.8.23"
 tower = { version = "=0.5.3", features = ["util"] }
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "json"] }
-uuid = { version = "=1.29.2", features = ["v4", "serde"] }
+uuid = { version = "=1.29.2", features = ["v4", "v5", "serde"] }
