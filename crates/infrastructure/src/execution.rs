@@ -1,5 +1,8 @@
 use ferrum_contracts::{ExecuteSubmission, SubmissionCompleted, SubmissionCreated};
-use ferrum_domain::{EffectiveLimits, ProcessingState, SubmissionInput, ValidationError, Verdict};
+use ferrum_domain::{
+    ComparisonMode, EffectiveLimits, ProcessingState, SubmissionInput, TestCase, ValidationError,
+    Verdict,
+};
 use ferrum_sandbox::{
     CleanupDisposition, ExecutionReport, ExecutionResult, ProgramOutcome, SandboxError,
 };
@@ -32,7 +35,7 @@ pub struct ExecutionOwner {
 }
 
 #[derive(sqlx::FromRow)]
-pub struct ExecutionInput {
+struct StoredExecutionInput {
     language: String,
     runtime_profile: String,
     source: String,
@@ -40,14 +43,34 @@ pub struct ExecutionInput {
     limits: Json<EffectiveLimits>,
 }
 
+#[derive(sqlx::FromRow)]
+struct StoredTestCase {
+    case_index: i32,
+    input: String,
+    expected_output: String,
+    weight: i32,
+    hidden: bool,
+    comparison_mode: String,
+}
+
+pub struct ExecutionInput {
+    language: String,
+    runtime_profile: String,
+    source: String,
+    stdin: String,
+    limits: Json<EffectiveLimits>,
+    cases: Vec<TestCase>,
+}
+
 impl ExecutionInput {
     pub fn validate(self) -> Result<SubmissionInput, ValidationError> {
-        SubmissionInput::from_persisted(
+        SubmissionInput::from_persisted_with_cases(
             &self.language,
             &self.runtime_profile,
             self.source,
             self.stdin,
             self.limits.0,
+            self.cases,
         )
     }
 }
@@ -61,7 +84,7 @@ pub async fn claim_execution(
         return Ok(None);
     }
     let mut tx = pool.begin().await.map_err(execution_storage)?;
-    let claimed = sqlx::query_as::<_, ExecutionInput>(
+    let claimed = sqlx::query_as::<_, StoredExecutionInput>(
         "UPDATE execution_attempts AS a
          SET state = 'running', host_id = $4, worker_id = $5,
              lease_expires_at = clock_timestamp() + interval '30 seconds', started_at = now()
@@ -78,11 +101,47 @@ pub async fn claim_execution(
     .fetch_optional(&mut *tx)
     .await
     .map_err(execution_storage)?;
-    if claimed.is_some() {
+
+    let input = if let Some(stored) = claimed {
         set_submission_state(&mut tx, job, ProcessingState::Processing, None).await?;
-    }
+        let stored_cases = sqlx::query_as::<_, StoredTestCase>(
+            "SELECT case_index, input, expected_output, weight, hidden, comparison_mode
+             FROM submission_test_cases
+             WHERE organization_id = $1 AND submission_id = $2
+             ORDER BY case_index ASC",
+        )
+        .bind(job.organization_id)
+        .bind(job.submission_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(execution_storage)?;
+
+        let cases = stored_cases
+            .into_iter()
+            .map(|c| TestCase {
+                index: c.case_index as u32,
+                input: c.input,
+                expected_output: c.expected_output,
+                weight: c.weight as u32,
+                hidden: c.hidden,
+                comparison_mode: c.comparison_mode.parse().unwrap_or(ComparisonMode::Exact),
+            })
+            .collect();
+
+        Some(ExecutionInput {
+            language: stored.language,
+            runtime_profile: stored.runtime_profile,
+            source: stored.source,
+            stdin: stored.stdin,
+            limits: stored.limits,
+            cases,
+        })
+    } else {
+        None
+    };
+
     tx.commit().await.map_err(execution_storage)?;
-    Ok(claimed)
+    Ok(input)
 }
 
 pub async fn renew_attempt_lease(
@@ -140,26 +199,34 @@ pub async fn finalize_execution(
 
     let (state, verdict) = result.map_or(
         (ProcessingState::Failed, Some(Verdict::InternalError)),
-        |result| match result.outcome {
-            ProgramOutcome::Success => (ProcessingState::Completed, None),
-            ProgramOutcome::CompilationError => {
-                (ProcessingState::Completed, Some(Verdict::CompilationError))
+        |result| {
+            if let Some(cases) = &result.cases {
+                let verdicts: Vec<Verdict> = cases.iter().map(|c| c.verdict).collect();
+                let verdict = ferrum_judge::aggregate_verdict(&verdicts);
+                (ProcessingState::Completed, Some(verdict))
+            } else {
+                match result.outcome {
+                    ProgramOutcome::Success => (ProcessingState::Completed, None),
+                    ProgramOutcome::CompilationError => {
+                        (ProcessingState::Completed, Some(Verdict::CompilationError))
+                    }
+                    ProgramOutcome::RuntimeError => {
+                        (ProcessingState::Completed, Some(Verdict::RuntimeError))
+                    }
+                    ProgramOutcome::CpuTimeLimit | ProgramOutcome::WallTimeLimit => {
+                        (ProcessingState::Completed, Some(Verdict::TimeLimitExceeded))
+                    }
+                    ProgramOutcome::MemoryLimit => (
+                        ProcessingState::Completed,
+                        Some(Verdict::MemoryLimitExceeded),
+                    ),
+                    ProgramOutcome::OutputLimit(_) => (
+                        ProcessingState::Completed,
+                        Some(Verdict::OutputLimitExceeded),
+                    ),
+                    ProgramOutcome::Cancelled => (ProcessingState::Cancelled, None),
+                }
             }
-            ProgramOutcome::RuntimeError => {
-                (ProcessingState::Completed, Some(Verdict::RuntimeError))
-            }
-            ProgramOutcome::CpuTimeLimit | ProgramOutcome::WallTimeLimit => {
-                (ProcessingState::Completed, Some(Verdict::TimeLimitExceeded))
-            }
-            ProgramOutcome::MemoryLimit => (
-                ProcessingState::Completed,
-                Some(Verdict::MemoryLimitExceeded),
-            ),
-            ProgramOutcome::OutputLimit(_) => (
-                ProcessingState::Completed,
-                Some(Verdict::OutputLimitExceeded),
-            ),
-            ProgramOutcome::Cancelled => (ProcessingState::Cancelled, None),
         },
     );
     let (cleanup, cleanup_error) = match cleanup {
@@ -337,8 +404,8 @@ async fn persist_result(
 
     sqlx::query(
         "INSERT INTO execution_results (organization_id, submission_id, attempt_id, outcome,
-            stdout, stderr, exit_code, signal, cpu_time_ms, wall_time_ms, peak_memory_kib)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+            stdout, stderr, exit_code, signal, cpu_time_ms, wall_time_ms, peak_memory_kib, score, max_score)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
     )
     .bind(job.organization_id)
     .bind(job.submission_id)
@@ -351,9 +418,12 @@ async fn persist_result(
     .bind(measurement(result.facts.cpu_time_ms)?)
     .bind(measurement(result.facts.wall_time_ms)?)
     .bind(measurement(result.facts.peak_memory_kib)?)
+    .bind(result.score.map(|s| s as i32))
+    .bind(result.max_score.map(|m| m as i32))
     .execute(&mut **tx)
     .await
     .map_err(execution_storage)?;
+
     if let Some(stage) = &result.compilation {
         sqlx::query(
             "INSERT INTO compilation_results (attempt_id, outcome, stdout, stderr,
@@ -373,6 +443,32 @@ async fn persist_result(
         .await
         .map_err(execution_storage)?;
     }
+
+    if let Some(cases) = &result.cases {
+        for case in cases {
+            sqlx::query(
+                "INSERT INTO submission_case_results (attempt_id, case_index, verdict, score, max_score,
+                    stdout, stderr, exit_code, signal, cpu_time_ms, wall_time_ms, peak_memory_kib)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+            )
+            .bind(job.attempt_id)
+            .bind(case.index as i32)
+            .bind(case.verdict.as_storage())
+            .bind(case.score as i32)
+            .bind(case.max_score as i32)
+            .bind(case.stdout.as_deref().unwrap_or_default().as_bytes())
+            .bind(case.stderr.as_deref().unwrap_or_default().as_bytes())
+            .bind(case.exit_code.map(i16::from))
+            .bind(case.signal.map(i16::from))
+            .bind(measurement(case.cpu_time_ms)?)
+            .bind(measurement(case.wall_time_ms)?)
+            .bind(measurement(case.peak_memory_kib)?)
+            .execute(&mut **tx)
+            .await
+            .map_err(execution_storage)?;
+        }
+    }
+
     Ok(())
 }
 

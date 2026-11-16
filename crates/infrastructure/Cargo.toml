@@ -12,6 +12,7 @@ ferrum-application.workspace = true
 ferrum-config.workspace = true
 ferrum-contracts.workspace = true
 ferrum-domain.workspace = true
+ferrum-judge.workspace = true
 ferrum-sandbox.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

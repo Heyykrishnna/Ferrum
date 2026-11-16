@@ -1,7 +1,8 @@
 use ferrum_application::{IdempotencyKey, SubmissionError, SubmissionRepository};
 use ferrum_contracts::SubmissionCreated;
 use ferrum_domain::{
-    ProcessingState, Submission, SubmissionInput, SubmissionResult, SubmissionStageResult, Verdict,
+    CaseContent, CaseFinding, CaseTelemetry, ProcessingState, Submission, SubmissionInput,
+    SubmissionResult, SubmissionStageResult, Verdict,
 };
 use sqlx::{PgPool, types::Json};
 use uuid::Uuid;
@@ -42,6 +43,9 @@ struct SubmissionDetailRow {
     id: Uuid,
     state: String,
     verdict: Option<String>,
+    attempt_id: Option<Uuid>,
+    score: Option<i32>,
+    max_score: Option<i32>,
     #[sqlx(flatten)]
     stage: StoredStage,
     compilation_outcome: Option<String>,
@@ -55,7 +59,7 @@ struct SubmissionDetailRow {
 }
 
 impl SubmissionDetailRow {
-    fn into_domain(self) -> Result<Submission, SubmissionError> {
+    fn into_domain(self, cases: Option<Vec<CaseFinding>>) -> Result<Submission, SubmissionError> {
         let state = ProcessingState::from_storage(&self.state).ok_or(SubmissionError::Storage)?;
         let verdict = self
             .verdict
@@ -75,6 +79,9 @@ impl SubmissionDetailRow {
                 peak_memory_kib: self.compilation_peak_memory_kib,
             }
             .into_domain(),
+            score: self.score.and_then(|s| u32::try_from(s).ok()),
+            max_score: self.max_score.and_then(|m| u32::try_from(m).ok()),
+            cases,
         });
         Ok(Submission {
             id: self.id,
@@ -82,6 +89,66 @@ impl SubmissionDetailRow {
             verdict,
             result,
         })
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct CaseResultRow {
+    case_index: i32,
+    verdict: String,
+    score: i32,
+    max_score: i32,
+    hidden: Option<bool>,
+    input: Option<String>,
+    expected_output: Option<String>,
+    stdout: Option<Vec<u8>>,
+    stderr: Option<Vec<u8>>,
+    exit_code: Option<i16>,
+    signal: Option<i16>,
+    cpu_time_ms: Option<i64>,
+    wall_time_ms: Option<i64>,
+    peak_memory_kib: Option<i64>,
+}
+
+impl CaseResultRow {
+    fn into_domain(self) -> Option<CaseFinding> {
+        let verdict = Verdict::from_storage(&self.verdict)?;
+        let score = u32::try_from(self.score).ok()?;
+        let max_score = u32::try_from(self.max_score).ok()?;
+        let index = u32::try_from(self.case_index).ok()?;
+        let cpu_time_ms = self.cpu_time_ms.and_then(|t| u64::try_from(t).ok());
+        let wall_time_ms = self.wall_time_ms.and_then(|t| u64::try_from(t).ok());
+        let peak_memory_kib = self.peak_memory_kib.and_then(|m| u64::try_from(m).ok());
+        let hidden = self.hidden.unwrap_or(false);
+        let telemetry = CaseTelemetry {
+            exit_code: self.exit_code.and_then(|c| u8::try_from(c).ok()),
+            signal: self.signal.and_then(|s| u8::try_from(s).ok()),
+            cpu_time_ms,
+            wall_time_ms,
+            peak_memory_kib,
+        };
+
+        if hidden {
+            Some(CaseFinding::hidden(
+                index, verdict, score, max_score, telemetry,
+            ))
+        } else {
+            let stdout = String::from_utf8_lossy(&self.stdout.unwrap_or_default()).into_owned();
+            let stderr = String::from_utf8_lossy(&self.stderr.unwrap_or_default()).into_owned();
+            Some(CaseFinding::public(
+                index,
+                verdict,
+                score,
+                max_score,
+                CaseContent {
+                    input: self.input.unwrap_or_default(),
+                    expected_output: self.expected_output.unwrap_or_default(),
+                    stdout,
+                    stderr,
+                },
+                telemetry,
+            ))
+        }
     }
 }
 
@@ -163,6 +230,24 @@ impl SubmissionRepository for PostgresSubmissions {
         .map_err(storage_error)?;
 
         let submission = if let Some(row) = row {
+            for case in input.cases() {
+                sqlx::query(
+                    "INSERT INTO submission_test_cases
+                        (organization_id, submission_id, case_index, input, expected_output, weight, hidden, comparison_mode)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                )
+                .bind(organization_id)
+                .bind(row.id)
+                .bind(case.index as i32)
+                .bind(&case.input)
+                .bind(&case.expected_output)
+                .bind(case.weight as i32)
+                .bind(case.hidden)
+                .bind(case.comparison_mode.as_str())
+                .execute(&mut *transaction)
+                .await
+                .map_err(storage_error)?;
+            }
             let event = SubmissionCreated {
                 event_id: Uuid::new_v4(),
                 organization_id,
@@ -182,7 +267,7 @@ impl SubmissionRepository for PostgresSubmissions {
             .map_err(storage_error)?;
             row
         } else {
-            sqlx::query_as::<_, SubmissionRow>(
+            let existing = sqlx::query_as::<_, SubmissionRow>(
                 "SELECT id, state, verdict FROM submissions
                  WHERE organization_id = $1 AND idempotency_key = $2 AND language = $3
                    AND runtime_profile = $4 AND source COLLATE \"C\" = $5 AND stdin COLLATE \"C\" = $6
@@ -198,7 +283,36 @@ impl SubmissionRepository for PostgresSubmissions {
             .fetch_optional(&mut *transaction)
             .await
             .map_err(storage_error)?
-            .ok_or(SubmissionError::IdempotencyConflict)?
+            .ok_or(SubmissionError::IdempotencyConflict)?;
+
+            let existing_cases = sqlx::query_as::<_, (i32, String, String, i32, bool, String)>(
+                "SELECT case_index, input, expected_output, weight, hidden, comparison_mode
+                 FROM submission_test_cases
+                 WHERE organization_id = $1 AND submission_id = $2
+                 ORDER BY case_index ASC",
+            )
+            .bind(organization_id)
+            .bind(existing.id)
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(storage_error)?;
+
+            let cases_match = existing_cases.len() == input.cases().len()
+                && existing_cases.iter().zip(input.cases().iter()).all(
+                    |(stored, input_case)| {
+                        stored.0 == input_case.index as i32
+                            && stored.1 == input_case.input
+                            && stored.2 == input_case.expected_output
+                            && stored.3 == input_case.weight as i32
+                            && stored.4 == input_case.hidden
+                            && stored.5 == input_case.comparison_mode.as_str()
+                    },
+                );
+
+            if !cases_match {
+                return Err(SubmissionError::IdempotencyConflict);
+            }
+            existing
         }
         .into_domain()?;
 
@@ -211,11 +325,14 @@ impl SubmissionRepository for PostgresSubmissions {
         organization_id: Uuid,
         submission_id: Uuid,
     ) -> Result<Option<Submission>, SubmissionError> {
-        sqlx::query_as::<_, SubmissionDetailRow>(
+        let detail = sqlx::query_as::<_, SubmissionDetailRow>(
             "SELECT
                 s.id,
                 s.state,
                 s.verdict,
+                r.attempt_id,
+                r.score,
+                r.max_score,
                 r.outcome,
                 r.stdout,
                 r.stderr,
@@ -242,9 +359,55 @@ impl SubmissionRepository for PostgresSubmissions {
         .bind(submission_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(storage_error)?
-        .map(SubmissionDetailRow::into_domain)
-        .transpose()
+        .map_err(storage_error)?;
+
+        let Some(detail) = detail else {
+            return Ok(None);
+        };
+
+        let cases = if let Some(attempt_id) = detail.attempt_id {
+            let case_rows = sqlx::query_as::<_, CaseResultRow>(
+                "SELECT
+                    c.case_index,
+                    c.verdict,
+                    c.score,
+                    c.max_score,
+                    t.hidden,
+                    t.input,
+                    t.expected_output,
+                    c.stdout,
+                    c.stderr,
+                    c.exit_code,
+                    c.signal,
+                    c.cpu_time_ms,
+                    c.wall_time_ms,
+                    c.peak_memory_kib
+                 FROM submission_case_results c
+                 JOIN execution_results r ON r.attempt_id = c.attempt_id
+                 LEFT JOIN submission_test_cases t
+                    ON (t.organization_id, t.submission_id, t.case_index) = (r.organization_id, r.submission_id, c.case_index)
+                 WHERE c.attempt_id = $1
+                 ORDER BY c.case_index ASC",
+            )
+            .bind(attempt_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(storage_error)?;
+
+            if case_rows.is_empty() {
+                None
+            } else {
+                let parsed: Vec<CaseFinding> = case_rows
+                    .into_iter()
+                    .filter_map(CaseResultRow::into_domain)
+                    .collect();
+                Some(parsed)
+            }
+        } else {
+            None
+        };
+
+        detail.into_domain(cases).map(Some)
     }
 }
 
