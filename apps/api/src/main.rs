@@ -1,8 +1,10 @@
+mod api_keys;
 mod auth;
 mod health;
 mod submissions;
+mod webhooks;
 
-use std::{env, error::Error, ffi::OsStr, process::ExitCode};
+use std::{env, error::Error, ffi::OsStr, process::ExitCode, sync::Arc};
 
 use ferrum_config::{ApiSettings, DatabaseSettings};
 use ferrum_infrastructure::PostgresSubmissions;
@@ -57,7 +59,11 @@ async fn serve() -> Result<(), Box<dyn Error + Send + Sync>> {
             .map(|(repository, _)| repository.clone()),
     );
     if let Some((repository, caller)) = submission_state {
-        router = router.merge(submissions::router(repository, caller));
+        let caller_arc = Arc::new(caller.clone());
+        router = router
+            .merge(submissions::router(repository.clone(), caller))
+            .merge(api_keys::router(repository.clone(), caller_arc.clone()))
+            .merge(webhooks::router(repository, caller_arc));
     }
 
     tracing::info!(

@@ -59,6 +59,14 @@ impl ApiError {
         Self::new(StatusCode::BAD_REQUEST, code, message)
     }
 
+    pub fn internal(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(StatusCode::INTERNAL_SERVER_ERROR, code, message)
+    }
+
+    pub fn not_found_with(code: &'static str, message: impl Into<String>) -> Self {
+        Self::new(StatusCode::NOT_FOUND, code, message)
+    }
+
     pub fn not_found() -> Self {
         Self::new(
             StatusCode::NOT_FOUND,

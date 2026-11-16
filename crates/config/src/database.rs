@@ -11,6 +11,7 @@ pub struct DatabaseSettings {
     pub acquire_timeout: Duration,
 }
 
+#[derive(Clone, Debug)]
 pub struct DevelopmentCaller {
     pub organization_id: Uuid,
     pub token: String,
