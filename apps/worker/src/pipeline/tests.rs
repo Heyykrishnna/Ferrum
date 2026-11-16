@@ -3,10 +3,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use ferrum_application::{IdempotencyKey, SubmissionRepository};
 use ferrum_config::DatabaseSettings;
 use ferrum_domain::{
-    CaseContent, CaseFinding, CaseTelemetry, ComparisonMode, ProcessingState, SubmissionInput,
-    TestCase, Verdict,
+    CaseContent, CaseFinding, CaseTelemetry, ComparisonMode, ProcessingState, StaleAttemptAction,
+    SubmissionInput, TestCase, Verdict,
 };
-use ferrum_infrastructure::{PostgresSubmissions, connect, execution::recover_after_host_probe};
+use ferrum_infrastructure::{
+    PostgresSubmissions, connect, execution::recover_after_host_probe, list_quarantined_attempts,
+    reconcile_stale_attempts, reconcile_stuck_outbox, resolve_quarantine,
+};
 use ferrum_sandbox::{
     CleanupError, ExecutionFacts, ExecutionReport, ExecutionResult, ProgramOutcome, StageResult,
 };
@@ -604,4 +607,140 @@ async fn pipeline_judging_multi_case_scoring_and_privacy() {
     assert_eq!(cases[1].expected_output, None);
     assert_eq!(cases[1].stdout, None);
     assert_eq!(cases[1].stderr, None);
+}
+
+#[tokio::test]
+#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
+async fn stale_attempts_reconciliation_requeues_within_max_attempts() {
+    let fixture = Fixture::new().await;
+    let submission_id = fixture.submit().await;
+    dispatch_execution(&fixture.pool).await.unwrap();
+    let job = fixture.latest_job(submission_id).await;
+    let owner = owner();
+    let input = claim_execution(&fixture.pool, &job, owner).await.unwrap();
+    assert!(input.is_some());
+
+    sqlx::query(
+        "UPDATE execution_attempts
+         SET lease_expires_at = clock_timestamp() - interval '5 seconds'
+         WHERE id = $1",
+    )
+    .bind(job.attempt_id)
+    .execute(&fixture.pool)
+    .await
+    .unwrap();
+
+    let reconciled = reconcile_stale_attempts(&fixture.pool).await.unwrap();
+    assert_eq!(reconciled.len(), 1);
+    assert_eq!(reconciled[0].attempt_id, job.attempt_id);
+    assert_eq!(reconciled[0].action, StaleAttemptAction::Requeued);
+
+    let fetched = fixture
+        .repository
+        .get(fixture.organization_id, submission_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched.state, ProcessingState::Queued);
+}
+
+#[tokio::test]
+#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
+async fn stale_attempts_reconciliation_marks_failed_at_max_attempts() {
+    let fixture = Fixture::new().await;
+    let submission_id = fixture.submit().await;
+    dispatch_execution(&fixture.pool).await.unwrap();
+    let job = fixture.latest_job(submission_id).await;
+    let owner = owner();
+    let input = claim_execution(&fixture.pool, &job, owner).await.unwrap();
+    assert!(input.is_some());
+
+    sqlx::query(
+        "UPDATE execution_attempts
+         SET attempt_number = 3, lease_expires_at = clock_timestamp() - interval '5 seconds'
+         WHERE id = $1",
+    )
+    .bind(job.attempt_id)
+    .execute(&fixture.pool)
+    .await
+    .unwrap();
+
+    let reconciled = reconcile_stale_attempts(&fixture.pool).await.unwrap();
+    assert_eq!(reconciled.len(), 1);
+    assert_eq!(reconciled[0].attempt_id, job.attempt_id);
+    assert_eq!(reconciled[0].action, StaleAttemptAction::MarkedFailed);
+
+    let fetched = fixture
+        .repository
+        .get(fixture.organization_id, submission_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched.state, ProcessingState::Failed);
+    assert_eq!(fetched.verdict, Some(Verdict::InternalError));
+}
+
+#[tokio::test]
+#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
+async fn stuck_outbox_reconciliation_publishes_pending_events() {
+    let fixture = Fixture::new().await;
+    let submission_id = fixture.submit().await;
+
+    sqlx::query(
+        "UPDATE outbox_events
+         SET created_at = clock_timestamp() - interval '2 minutes'
+         WHERE submission_id = $1",
+    )
+    .bind(submission_id)
+    .execute(&fixture.pool)
+    .await
+    .unwrap();
+
+    let count = reconcile_stuck_outbox(&fixture.pool, Duration::from_secs(30))
+        .await
+        .unwrap();
+    assert!(count >= 1);
+
+    let published_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM outbox_events WHERE submission_id = $1 AND published_at IS NOT NULL",
+    )
+    .bind(submission_id)
+    .fetch_one(&fixture.pool)
+    .await
+    .unwrap();
+    assert_eq!(published_count, 1);
+}
+
+#[tokio::test]
+#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
+async fn quarantine_listing_and_resolution() {
+    let fixture = Fixture::new().await;
+    let submission_id = fixture.submit().await;
+    dispatch_execution(&fixture.pool).await.unwrap();
+    let job = fixture.latest_job(submission_id).await;
+
+    sqlx::query(
+        "UPDATE execution_attempts
+         SET cleanup_disposition = 'unresolved', cleanup_error = 'device busy', started_at = now()
+         WHERE id = $1",
+    )
+    .bind(job.attempt_id)
+    .execute(&fixture.pool)
+    .await
+    .unwrap();
+
+    let quarantined = list_quarantined_attempts(&fixture.pool).await.unwrap();
+    assert!(quarantined.iter().any(|q| q.attempt_id == job.attempt_id));
+
+    let resolved = resolve_quarantine(&fixture.pool, job.attempt_id)
+        .await
+        .unwrap();
+    assert!(resolved);
+
+    let quarantined_after = list_quarantined_attempts(&fixture.pool).await.unwrap();
+    assert!(
+        !quarantined_after
+            .iter()
+            .any(|q| q.attempt_id == job.attempt_id)
+    );
 }
