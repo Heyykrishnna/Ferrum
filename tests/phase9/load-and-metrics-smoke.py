@@ -11,6 +11,8 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
 phase2 = runpy.run_path(str(ROOT / "tests/phase2/submission-smoke.py"))
+phase4 = runpy.run_path(str(ROOT / "tests/phase4/worker-smoke.py"))
+STAGE_SIZE = 25
 
 
 def scrape_metrics(port: int) -> str:
@@ -69,7 +71,7 @@ def verify_trace_propagation(port: int, token: str) -> None:
     conn.close()
 
 
-def verify_auth_and_quota_metrics(port: int, token: str) -> None:
+def verify_auth_failure_metrics(port: int) -> None:
     conn = http.client.HTTPConnection("127.0.0.1", port)
     headers = {
         "Authorization": "Bearer bad_token_12345",
@@ -84,8 +86,7 @@ def verify_auth_and_quota_metrics(port: int, token: str) -> None:
     conn.close()
 
     metrics_text = scrape_metrics(port)
-    assert "ferrum_api_auth_failures_total" in metrics_text
-    assert 'reason="invalid_dev_token"' in metrics_text or "reason=" in metrics_text
+    assert 'ferrum_api_auth_failures_total{reason="invalid_dev_token"} 1' in metrics_text.splitlines()
 
 
 def verify_worker_metrics_cli(worker_bin: Path, env: dict[str, str]) -> None:
@@ -112,20 +113,29 @@ def run_staged_load(port: int, token: str, count: int = 15) -> dict[str, float]:
         "rust": "fn main(){println!(\"{}\", 4950);}",
     }
 
-    start_all = time.perf_counter()
-    for i in range(count):
-        lang = languages[i % len(languages)]
-        t0 = time.perf_counter()
-        status, body, headers = phase2["create"](
-            port,
-            token,
-            f"load-{i}-{uuid4()}",
-            {"language": lang, "source": sources[lang]},
-        )
-        elapsed = time.perf_counter() - t0
-        assert status == 202, f"Failed on submission {i}: {status}"
-        latencies.append(elapsed)
-    total_time = time.perf_counter() - start_all
+    total_time = 0.0
+    for stage_start in range(0, count, STAGE_SIZE):
+        locations = []
+        stage_started = time.perf_counter()
+        for i in range(stage_start, min(stage_start + STAGE_SIZE, count)):
+            lang = languages[i % len(languages)]
+            started = time.perf_counter()
+            status, body, headers = phase2["create"](
+                port,
+                token,
+                f"load-{i}-{uuid4()}",
+                {"language": lang, "source": sources[lang]},
+            )
+            latencies.append(time.perf_counter() - started)
+            assert status == 202, (i, status, body)
+            locations.append(headers["location"])
+        total_time += time.perf_counter() - stage_started
+
+        for location in locations:
+            status, body, _ = phase2["request"](
+                port, "POST", f"{location}/cancel", token=token
+            )
+            assert status == 200 and body["outcome"] == "cancelled", (status, body)
 
     latencies.sort()
     p50 = latencies[int(len(latencies) * 0.50)]
@@ -147,12 +157,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Phase 9 Observability and Performance Smoke Suite")
     parser.add_argument("--count", type=int, default=15, help="Number of synthetic load submissions")
     args = parser.parse_args()
+    if args.count < 1:
+        parser.error("--count must be at least 1")
 
-    api_bin = ROOT / "target/debug/ferrum-api"
-    worker_bin = ROOT / "target/debug/ferrum-worker"
-
-    if not api_bin.exists() or not worker_bin.exists():
-        subprocess.run(["cargo", "build", "--bin", "ferrum-api", "--bin", "ferrum-worker"], check=True)
+    phase4["cargo"]("build", "--locked", "-p", "ferrum-api", "-p", "ferrum-worker")
+    metadata = json.loads(
+        phase4["cargo"]("metadata", "--locked", "--no-deps", "--format-version=1")
+    )
+    bin_dir = Path(metadata["target_directory"]) / "debug"
+    api_bin, worker_bin = bin_dir / "ferrum-api", bin_dir / "ferrum-worker"
 
     print("=== [1/5] Initializing Disposable Staging Database ===")
     db = phase2["Database"]()
@@ -180,8 +193,8 @@ def main() -> None:
             verify_trace_propagation(port, token)
             print("  ✓ W3C TraceContext (traceparent) and x-request-id end-to-end propagation confirmed")
 
-            verify_auth_and_quota_metrics(port, token)
-            print("  ✓ Auth failure and rejection metrics recorded")
+            verify_auth_failure_metrics(port)
+            print("  ✓ Invalid-token authentication failure metric recorded")
 
             print(f"=== [4/5] Executing Staged Load Test ({args.count} requests, multi-language mix) ===")
             stats = run_staged_load(port, token, count=args.count)

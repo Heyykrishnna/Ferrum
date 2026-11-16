@@ -175,7 +175,7 @@ def main() -> None:
             subprocess.run(
                 ["cargo", "test", "--locked", "-p", "ferrum-worker", "--",
                  "--ignored", "--test-threads=1", "--nocapture"],
-                cwd=ROOT, env=env, check=True, timeout=240,
+                cwd=ROOT, env={**env, "DATABASE_URL": url}, check=True, timeout=240,
             )
             print("Phase 4 PostgreSQL/Apalis pipeline passed with the sandbox test double")
 

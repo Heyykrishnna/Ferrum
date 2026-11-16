@@ -122,22 +122,21 @@ Alert rules are defined in `deployment/prometheus/alerts.yml` and directly refer
 
 ## 6. Verification & Staged Load Testing
 
-The smoke test harness in `tests/phase9/load-and-metrics-smoke.py` exercises the complete observability stack:
+The smoke test harness in `tests/phase9/load-and-metrics-smoke.py` checks the API metrics endpoint, HTTP trace headers, and the worker metrics CLI against disposable PostgreSQL.
 
 ```bash
-# Execute Phase 9 smoke suite:
 python3 tests/phase9/load-and-metrics-smoke.py
-
-# Custom load volume:
 python3 tests/phase9/load-and-metrics-smoke.py --count 100
 ```
+
+The harness sends sequential requests in stages of up to 25. It cancels the submissions through the API after each stage to free capacity under the tenant quota. Reported throughput and percentiles cover intake and exclude cancellation time. Worker throughput and end-to-end latency require a separate run on a qualified Linux worker.
 
 ### Verification Evidence
 
 - **Metric Scrapes:** 30 metric families verified on `GET /metrics`.
-- **Trace Propagation:** W3C `traceparent` and `x-request-id` verified roundtrip.
+- **Trace Propagation:** W3C `traceparent` and `x-request-id` verified over HTTP.
 - **Worker CLI:** `ferrum-worker metrics` command validated.
-- **Synthetic Load:** Multi-language mix verified at $> 500\,\text{req/s}$ intake throughput with p95 $< 3\,\text{ms}$.
-- **Post-Load State:** Metric counters, histograms, and stage durations verified incremented.
+- **Synthetic Load:** The harness reports intake throughput and latency for a multi-language request mix.
+- **Post-Load State:** The submission counter and HTTP request duration histogram are exposed.
 
 For detailed hardware profiles and measured stage breakdowns, see the [Capacity Benchmark Report](capacity-report.md).

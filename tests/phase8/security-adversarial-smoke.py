@@ -181,7 +181,7 @@ def main() -> None:
                     "--nocapture",
                 ],
                 cwd=ROOT,
-                env=env,
+                env={**env, "DATABASE_URL": url},
                 check=True,
                 timeout=240,
             )

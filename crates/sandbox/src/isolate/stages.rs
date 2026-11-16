@@ -7,7 +7,8 @@ use std::{
 };
 
 use ferrum_domain::{
-    CaseFinding, CommandPlan, CompilationPlan, EffectiveLimits, SubmissionInput, TestCase, Verdict,
+    CaseFinding, CaseTelemetry, CommandPlan, CompilationPlan, EffectiveLimits, SubmissionInput,
+    TestCase, Verdict,
 };
 use ferrum_judge::{CaseExecution, evaluate_suite};
 use rustix::process::geteuid;
@@ -302,10 +303,10 @@ fn stage_file(name: &str, data: &str) -> io::Result<()> {
         return Err(io::Error::other("invalid Isolate staging directory"));
     }
     let target = workspace.join(clean_path);
-    if let Some(parent) = target.parent() {
-        if parent != workspace {
-            fs::create_dir_all(parent)?;
-        }
+    if let Some(parent) = target.parent()
+        && parent != workspace
+    {
+        fs::create_dir_all(parent)?;
     }
     OpenOptions::new()
         .write(true)
@@ -358,9 +359,7 @@ fn skipped_cases(
                 Verdict::CompilationError,
                 0,
                 case.weight,
-                None,
-                None,
-                None,
+                CaseTelemetry::default(),
             )
         })
         .collect();
@@ -382,6 +381,31 @@ mod tests {
 
     use super::*;
     use crate::CleanupDisposition;
+
+    #[test]
+    fn skipped_compilation_cases_have_no_runtime_data() {
+        let cases = [TestCase {
+            index: 1,
+            input: "hidden input".into(),
+            expected_output: "hidden output".into(),
+            weight: 10,
+            hidden: true,
+            comparison_mode: ferrum_domain::ComparisonMode::Exact,
+        }];
+        let result = skipped_cases(ProgramOutcome::CompilationError, None, &cases);
+
+        assert_eq!(result.score, Some(0));
+        assert_eq!(result.max_score, Some(10));
+        let findings = result.cases.unwrap();
+        assert_eq!(findings.len(), 1);
+        let finding = &findings[0];
+        assert_eq!(finding.verdict, Verdict::CompilationError);
+        assert!(finding.input.is_none() && finding.expected_output.is_none());
+        assert!(finding.stdout.is_none() && finding.stderr.is_none());
+        assert!(finding.exit_code.is_none() && finding.signal.is_none());
+        assert!(finding.cpu_time_ms.is_none() && finding.wall_time_ms.is_none());
+        assert!(finding.peak_memory_kib.is_none());
+    }
 
     #[test]
     #[ignore = "requires the dedicated Debian amd64 Isolate worker and all toolchains"]

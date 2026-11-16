@@ -65,6 +65,18 @@ class Database:
             sql,
         )
 
+    def verify_migrations(self) -> None:
+        expected = sorted(
+            int(path.name.split("_", 1)[0])
+            for path in (ROOT / "migrations").glob("[0-9]*_*.sql")
+            if not path.name.endswith(".down.sql")
+        )
+        applied = self.query(
+            "SELECT version FROM _sqlx_migrations WHERE success ORDER BY version"
+        )
+        versions = [int(version) for version in applied.splitlines()]
+        assert expected and versions == expected, (versions, expected)
+
     @contextmanager
     def running(self):
         try:
@@ -284,6 +296,7 @@ def verify_conflict_and_rollback(
         "event_version",
         "created_at",
         "published_at",
+        "traceparent",
     ]
     assert counts(db) == (1, 1)
 
@@ -357,7 +370,7 @@ def main() -> None:
             subprocess.run(
                 [binary, "migrate"], env=migration_env, check=True, timeout=15
             )
-        assert db.query("SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success") == "{1,2,3,4,5}"
+        db.verify_migrations()
 
         with running_api(binary, env) as port:
             assert request(port, "GET", "/health/ready")[:2] == (

@@ -2,79 +2,24 @@ import argparse
 from contextlib import contextmanager
 import http.client
 import json
-import os
 from pathlib import Path
+import runpy
 import secrets
 import signal
 import subprocess
 import tempfile
 import time
-from urllib.parse import urlsplit
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUEST = {"language": "python", "source": "print(input())\n"}
 
-
-def environment() -> dict[str, str]:
-    return {
-        key: value for key, value in os.environ.items() if not key.startswith("FERRUM_")
-    }
-
-
-class Database:
-    def __init__(self) -> None:
-        self.password = secrets.token_hex(24)
-        self.project = f"ferrum-phase7-{secrets.token_hex(6)}"
-        self.env = {
-            **environment(),
-            "FERRUM_POSTGRES_PASSWORD": self.password,
-            "FERRUM_POSTGRES_PORT": "0",
-        }
-
-    def compose(self, *args: str) -> str:
-        result = subprocess.run(
-            ["docker", "compose", "--env-file", os.devnull, "-p", self.project, *args],
-            cwd=ROOT,
-            env=self.env,
-            stdout=subprocess.PIPE,
-            text=True,
-            check=True,
-            timeout=90,
-        )
-        return result.stdout.strip()
-
-    def query(self, sql: str) -> str:
-        return self.compose(
-            "exec",
-            "-T",
-            "postgres",
-            "psql",
-            "-X",
-            "-qAt",
-            "-U",
-            "ferrum",
-            "-d",
-            "ferrum",
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-c",
-            sql,
-        )
-
-    @contextmanager
-    def running(self):
-        try:
-            self.compose("up", "-d", "--wait", "--wait-timeout", "60", "postgres")
-            _, port = self.compose("port", "postgres", "5432").rsplit(":", 1)
-            yield f"postgres://ferrum:{self.password}@127.0.0.1:{int(port)}/ferrum"
-        finally:
-            self.compose("down", "--volumes")
+phase2 = runpy.run_path(str(ROOT / "tests/phase2/submission-smoke.py"))
 
 
 def api_env(url: str, tenant: str, token: str) -> dict[str, str]:
     return {
-        **environment(),
+        **phase2["environment"](),
         "FERRUM_DATABASE_URL": url,
         "FERRUM_DEV_TENANT_ID": tenant,
         "FERRUM_DEV_TOKEN": token,
@@ -147,22 +92,18 @@ def main() -> None:
     parser.add_argument("--bin", type=Path, default=ROOT / "target" / "debug" / "ferrum-api")
     args = parser.parse_args()
 
-    subprocess.run(["cargo", "build", "--bin", "ferrum-api"], cwd=ROOT, check=True)
+    subprocess.run(["cargo", "build", "--locked", "--bin", "ferrum-api"], cwd=ROOT, check=True)
     api = args.bin.resolve()
 
-    db = Database()
+    db = phase2["Database"]()
+    db.project = f"ferrum-phase7-{secrets.token_hex(6)}"
     with db.running() as url:
         org_id = str(uuid4())
         dev_token = secrets.token_hex(32)
         env = api_env(url, org_id, dev_token)
 
         subprocess.run([api, "migrate"], env=env, check=True, timeout=20)
-        assert (
-            db.query(
-                "SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success"
-            )
-            == "{1,2,3,4,5}"
-        )
+        db.verify_migrations()
 
         with running_api(api, env) as port:
             status, payload, _ = request(

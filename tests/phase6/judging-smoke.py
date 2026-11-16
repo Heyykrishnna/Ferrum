@@ -33,12 +33,7 @@ def main() -> None:
             for _ in range(2):
                 subprocess.run([binary, "migrate"], env=env, check=True, timeout=20)
 
-        assert (
-            db.query(
-                "SELECT array_agg(version ORDER BY version) FROM _sqlx_migrations WHERE success"
-            )
-            == "{1,2,3,4,5}"
-        )
+        db.verify_migrations()
 
         if args.isolate:
             phase4["verify_isolate"](api, worker_binary, db, env)
@@ -57,7 +52,7 @@ def main() -> None:
                     "--nocapture",
                 ],
                 cwd=ROOT,
-                env=env,
+                env={**env, "DATABASE_URL": url},
                 check=True,
                 timeout=240,
             )

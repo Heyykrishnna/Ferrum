@@ -1,18 +1,18 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use ferrum_application::{IdempotencyKey, SubmissionRepository};
-use ferrum_config::DatabaseSettings;
 use ferrum_domain::{
     CaseContent, CaseFinding, CaseTelemetry, ComparisonMode, ProcessingState, StaleAttemptAction,
     SubmissionInput, TestCase, Verdict,
 };
 use ferrum_infrastructure::{
-    PostgresSubmissions, connect, execution::recover_after_host_probe, list_quarantined_attempts,
-    reconcile_stale_attempts, reconcile_stuck_outbox, resolve_quarantine,
+    PostgresSubmissions, execution::recover_after_host_probe, list_quarantined_attempts,
+    reconcile_stale_attempts, reconcile_stuck_outbox, resolve_quarantine, setup_apalis,
 };
 use ferrum_sandbox::{
     CleanupError, ExecutionFacts, ExecutionReport, ExecutionResult, ProgramOutcome, StageResult,
 };
+use sqlx::postgres::PgPoolOptions;
 use tokio::sync::Notify;
 use uuid::Uuid;
 
@@ -32,9 +32,8 @@ struct Fixture {
 }
 
 impl Fixture {
-    async fn new() -> Self {
-        let settings = DatabaseSettings::load().expect("use disposable PostgreSQL");
-        let pool = connect(&settings).await.unwrap();
+    async fn new(pool: PgPool) -> Self {
+        setup_apalis(&pool).await.unwrap();
         let organization_id = Uuid::new_v4();
         let repository = PostgresSubmissions::initialize(pool.clone(), organization_id)
             .await
@@ -141,11 +140,11 @@ fn pipeline(
     }
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn postgres_apalis_dispatch_drain_and_redelivery() {
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn postgres_apalis_dispatch_drain_and_redelivery(pool: PgPool) {
     tokio::time::timeout(Duration::from_secs(35), async {
-        let fixture = Fixture::new().await;
+        let fixture = Fixture::new(pool).await;
         let submission = fixture.submit().await;
         sqlx::query(
             "ALTER TABLE outbox_events ADD CONSTRAINT block_publish CHECK (published_at IS NULL)",
@@ -211,13 +210,13 @@ async fn postgres_apalis_dispatch_drain_and_redelivery() {
         competing.handle(job).await.unwrap();
         assert_eq!(sandbox.calls.load(Ordering::SeqCst), 1);
 
-        let settings = DatabaseSettings::load().unwrap();
-        let reopened = PostgresSubmissions::initialize(
-            connect(&settings).await.unwrap(),
-            fixture.organization_id,
-        )
-        .await
-        .unwrap();
+        let reopened_pool = PgPoolOptions::new()
+            .connect_with(fixture.pool.connect_options().as_ref().clone())
+            .await
+            .unwrap();
+        let reopened = PostgresSubmissions::initialize(reopened_pool, fixture.organization_id)
+            .await
+            .unwrap();
         let result = reopened
             .get(fixture.organization_id, submission)
             .await
@@ -269,10 +268,10 @@ async fn postgres_apalis_dispatch_drain_and_redelivery() {
     .expect("pipeline test exceeded 35 seconds");
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn postgres_compiler_outcomes_and_diagnostics_are_durable() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn postgres_compiler_outcomes_and_diagnostics_are_durable(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let owner = owner();
     for (outcome, verdict) in [
         (ProgramOutcome::CompilationError, Verdict::CompilationError),
@@ -349,10 +348,10 @@ async fn postgres_compiler_outcomes_and_diagnostics_are_durable() {
     }
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn postgres_expired_lease_retry_bound_and_cleanup_quarantine() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn postgres_expired_lease_retry_bound_and_cleanup_quarantine(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let submission = fixture.submit().await;
     let mut abandoned = owner();
 
@@ -470,10 +469,10 @@ async fn postgres_expired_lease_retry_bound_and_cleanup_quarantine() {
     assert_eq!(sandbox.calls.load(Ordering::SeqCst), 1);
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn pipeline_judging_multi_case_scoring_and_privacy() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn pipeline_judging_multi_case_scoring_and_privacy(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let owner = owner();
     let cases = vec![
         TestCase {
@@ -604,10 +603,10 @@ async fn pipeline_judging_multi_case_scoring_and_privacy() {
     assert_eq!(cases[1].stderr, None);
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn stale_attempts_reconciliation_requeues_within_max_attempts() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn stale_attempts_reconciliation_requeues_within_max_attempts(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let submission_id = fixture.submit().await;
     dispatch_execution(&fixture.pool).await.unwrap();
     let job = fixture.latest_job(submission_id).await;
@@ -639,10 +638,10 @@ async fn stale_attempts_reconciliation_requeues_within_max_attempts() {
     assert_eq!(fetched.state, ProcessingState::Queued);
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn stale_attempts_reconciliation_marks_failed_at_max_attempts() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn stale_attempts_reconciliation_marks_failed_at_max_attempts(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let submission_id = fixture.submit().await;
     dispatch_execution(&fixture.pool).await.unwrap();
     let job = fixture.latest_job(submission_id).await;
@@ -675,10 +674,10 @@ async fn stale_attempts_reconciliation_marks_failed_at_max_attempts() {
     assert_eq!(fetched.verdict, Some(Verdict::InternalError));
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn stuck_outbox_reconciliation_publishes_pending_events() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn stuck_outbox_reconciliation_publishes_pending_events(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let submission_id = fixture.submit().await;
 
     sqlx::query(
@@ -706,10 +705,10 @@ async fn stuck_outbox_reconciliation_publishes_pending_events() {
     assert_eq!(published_count, 1);
 }
 
-#[tokio::test]
-#[ignore = "requires a freshly migrated disposable PostgreSQL database"]
-async fn quarantine_listing_and_resolution() {
-    let fixture = Fixture::new().await;
+#[sqlx::test(migrations = "../../migrations")]
+#[ignore = "requires a disposable PostgreSQL server with a test database creation role"]
+async fn quarantine_listing_and_resolution(pool: PgPool) {
+    let fixture = Fixture::new(pool).await;
     let submission_id = fixture.submit().await;
     dispatch_execution(&fixture.pool).await.unwrap();
     let job = fixture.latest_job(submission_id).await;
