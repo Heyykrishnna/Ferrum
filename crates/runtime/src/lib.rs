@@ -1,3 +1,7 @@
+pub mod metrics;
+
+pub use metrics::{MetricsRegistry, render_metrics};
+
 use std::{error::Error, future::Future, io, time::Duration};
 
 use ferrum_config::LogLevel;
