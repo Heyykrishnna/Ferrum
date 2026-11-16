@@ -1,7 +1,12 @@
 import { Check, Clipboard, RotateCw, Square, Terminal } from 'lucide-react';
 import { useState } from 'react';
 
+import { CandyButton } from '@/components/ui/candy-button';
+
 import type { Submission } from '../shared/contracts';
+
+const secondaryAction =
+  'border border-edge focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface';
 
 type OutputTab = 'Output' | 'Errors' | 'Compiler';
 const tabs: OutputTab[] = ['Output', 'Errors', 'Compiler'];
@@ -179,36 +184,45 @@ export function ExecutionPanel({
             {submission.id.slice(0, 8)}
           </span>
           {pending && (
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               {status === 'paused' && (
-                <button
+                <CandyButton
                   type="button"
+                  variant="pearl"
+                  size="sm"
                   onClick={onRefresh}
-                  className="flex items-center gap-1.5 hover:text-ink"
+                  leftIcon={<RotateCw aria-hidden="true" />}
+                  className={secondaryAction}
                 >
-                  <RotateCw size={12} /> Refresh
-                </button>
+                  Refresh
+                </CandyButton>
               )}
-              <button
+              <CandyButton
                 type="button"
+                variant="pearl"
+                size="sm"
                 disabled={cancelling}
                 onClick={onCancel}
-                className="flex items-center gap-1.5 hover:text-ink disabled:opacity-60"
+                leftIcon={<Square aria-hidden="true" />}
+                className={secondaryAction}
               >
-                <Square size={11} /> {cancelling ? 'Cancelling…' : 'Cancel'}
-              </button>
+                {cancelling ? 'Cancelling…' : 'Cancel'}
+              </CandyButton>
             </div>
           )}
         </div>
       )}
       {retry && (
-        <button
+        <CandyButton
           type="button"
+          variant="obsidian"
+          size="sm"
           onClick={retry}
-          className="flex w-fit items-center gap-1.5 text-xs font-medium text-accent-ink"
+          leftIcon={<RotateCw aria-hidden="true" />}
+          className="w-fit focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface"
         >
-          <RotateCw size={12} /> Retry request
-        </button>
+          Retry request
+        </CandyButton>
       )}
     </section>
   );

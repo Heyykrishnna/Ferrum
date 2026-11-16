@@ -14,12 +14,29 @@ import {
   Menu,
   MemoryStick,
   ShieldOff,
-  Terminal,
   Trash2,
   X,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useState } from 'react';
+import type { SimpleIcon } from 'simple-icons';
+import {
+  siDocker,
+  siGrafana,
+  siLinux,
+  siOpentelemetry,
+  siPostgresql,
+  siPrometheus,
+  siRust,
+  siTokio,
+} from 'simple-icons';
+
+import { CandyButton } from '@/components/ui/candy-button';
+import type {
+  CandyButtonSize,
+  CandyButtonVariant,
+} from '@/components/ui/candy-button';
+import { cn } from '@/lib/utils';
 
 const repository = 'https://github.com/Heyykrishnna/Ferrum';
 const doc = (path: string) => `${repository}/blob/main/${path}`;
@@ -73,22 +90,21 @@ curl -X DELETE \\
 
 type RequestSample = keyof typeof requestSamples;
 
-const stack = [
-  ['Rust', 'core'],
-  ['Tokio', 'runtime'],
-  ['Axum', 'http'],
-  ['PostgreSQL', 'storage'],
-  ['Apalis', 'jobs'],
-  ['Isolate', 'sandbox'],
-  ['OpenTelemetry', 'traces'],
-  ['Prometheus', 'metrics'],
-] as const;
+const stack: { icon: SimpleIcon; role: string }[] = [
+  { icon: siRust, role: 'Core services' },
+  { icon: siTokio, role: 'Async runtime' },
+  { icon: siPostgresql, role: 'Storage & queue' },
+  { icon: siLinux, role: 'Isolate sandbox' },
+  { icon: siDocker, role: 'Local services' },
+  { icon: siOpentelemetry, role: 'Tracing' },
+  { icon: siPrometheus, role: 'Metrics' },
+  { icon: siGrafana, role: 'Dashboards' },
+];
 
 const products = [
   {
     id: 'api',
     name: 'Ferrum API',
-    kind: 'Execution Platform',
     summary:
       'An asynchronous HTTP API for running and judging untrusted code. Submissions are stored durably, queued through a transactional outbox, and executed inside Isolate on dedicated Linux workers. Use it for coding assessments, e-learning platforms, competitive programming, AI-generated code checks, and online editors.',
     features: [
@@ -109,7 +125,6 @@ const products = [
   {
     id: 'playground',
     name: 'Ferrum Playground',
-    kind: 'Online Code Editor',
     summary:
       'A Monaco-based workspace running on top of the same execution engine. Write a program, give it standard input, and run it, or submit it against an expected output and read the verdict. No local toolchains needed: everything compiles and runs on a Ferrum worker.',
     features: [
@@ -126,7 +141,6 @@ const products = [
   {
     id: 'judge',
     name: 'Ferrum Judge',
-    kind: 'Verdicts & Scoring',
     summary:
       'A judging engine kept separate from the sandbox. It compares raw program output under an explicit policy, scores weighted test cases, and resolves one deterministic verdict, while the platform’s processing state stays distinct from your program’s outcome.',
     features: [
@@ -346,28 +360,90 @@ function TextLink({
   );
 }
 
-function Eyebrow({ children }: { children: ReactNode }) {
-  return <p className="font-mono text-xs font-medium tracking-wide text-lp-accent">{children}</p>;
+function ActionButton({
+  href,
+  children,
+  variant = 'obsidian',
+  size = 'default',
+  className,
+}: {
+  href: string;
+  children: ReactNode;
+  variant?: CandyButtonVariant;
+  size?: CandyButtonSize;
+  className?: string;
+}) {
+  const external = isExternal(href);
+  const Icon = external ? ArrowUpRight : ArrowRight;
+  return (
+    <CandyButton
+      href={href}
+      variant={variant}
+      size={size}
+      // CandyButton marks anchors as buttons; these navigate, so keep link semantics.
+      role={undefined}
+      rightIcon={
+        <Icon
+          aria-hidden="true"
+          className={`${hoverMotion} transition-transform group-hover:translate-x-0.5`}
+        />
+      }
+      {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+      className={cn(
+        'group duration-300 ease-[var(--ease-soft)] focus-visible:ring-lp-ink/30 focus-visible:ring-offset-lp-canvas',
+        variant === 'pearl' && 'border border-lp-line',
+        className,
+      )}
+    >
+      {children}
+    </CandyButton>
+  );
 }
 
+function revealDelay(index: number): CSSProperties {
+  return { '--reveal-delay': `${Math.min(index, 7) * 70}ms` } as CSSProperties;
+}
+
+function useReveal() {
+  useEffect(() => {
+    const nodes = document.querySelectorAll<HTMLElement>('[data-reveal]');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          (entry.target as HTMLElement).dataset.revealed = 'true';
+          observer.unobserve(entry.target);
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.1 },
+    );
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, []);
+}
+
+const hoverMotion = 'duration-300 ease-[var(--ease-soft)]';
+
+const cardMotion = `transition-[box-shadow,border-color] ${hoverMotion} hover:border-[#c9c9c6] hover:shadow-[0_12px_32px_-20px_#00000040]`;
+
 function SectionHeading({
-  eyebrow,
   strong,
   faint,
   trailing,
   children,
 }: {
-  eyebrow: string;
   strong: string;
   faint: string;
   trailing?: string;
   children?: ReactNode;
 }) {
   return (
-    <div className="grid items-end gap-4 border-b border-lp-line pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-10">
+    <div
+      data-reveal
+      className="grid items-end gap-4 border-b border-lp-line pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-10"
+    >
       <div>
-        <Eyebrow>{eyebrow}</Eyebrow>
-        <h2 className="mt-3 text-3xl leading-tight font-semibold tracking-tight text-lp-ink sm:text-4xl xl:text-5xl">
+        <h2 className="text-3xl leading-tight font-semibold tracking-tight text-lp-ink sm:text-4xl xl:text-5xl">
           {strong} <span className="text-lp-fade">{faint}</span>
           {trailing && <> {trailing}</>}
         </h2>
@@ -383,7 +459,10 @@ function SectionHeading({
 
 function Frame({ children }: { children: ReactNode }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-lp-line bg-lp-card p-2 shadow-sm sm:p-3 lg:p-4">
+    <div
+      data-reveal
+      className="min-w-0 rounded-2xl border border-lp-line bg-lp-card p-2 shadow-sm sm:p-3 lg:p-4"
+    >
       {children}
     </div>
   );
@@ -415,26 +494,30 @@ function CodeLine({ line }: { line: string }) {
 
 function CodePanel() {
   const [sample, setSample] = useState<RequestSample>('Submit');
+  const samples = Object.keys(requestSamples) as RequestSample[];
   return (
     <div className="flex min-w-0 flex-col rounded-xl border border-lp-night-line bg-lp-night p-4 sm:p-6 xl:p-8">
-      <div className="mb-5 flex items-center gap-2 text-sm font-medium text-lp-night-text">
-        <Terminal size={18} aria-hidden="true" className="text-lp-accent-soft" />
-        API example
-      </div>
       <div
         role="group"
-        aria-label="Example step"
-        className="grid grid-cols-3 gap-1 rounded-lg border border-lp-night-line p-1"
+        aria-label="API example step"
+        className="relative grid grid-cols-3 rounded-lg border border-lp-night-line p-1"
       >
-        {(Object.keys(requestSamples) as RequestSample[]).map((name) => (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-md bg-lp-night-raise transition-transform duration-300 ease-[var(--ease-soft)]"
+          style={{
+            transform: `translateX(${samples.indexOf(sample) * 100}%)`,
+          }}
+        />
+        {samples.map((name) => (
           <button
             key={name}
             type="button"
             aria-pressed={sample === name}
             onClick={() => setSample(name)}
-            className={`min-h-10 rounded-md px-2 text-sm font-medium transition-colors focus-visible:outline-lp-accent-soft ${
+            className={`relative min-h-10 rounded-md px-2 text-sm font-medium transition-colors ${hoverMotion} focus-visible:outline-lp-accent-soft ${
               sample === name
-                ? 'bg-lp-accent-deep text-lp-night-text'
+                ? 'text-lp-night-text'
                 : 'text-lp-night-fade hover:text-lp-night-text'
             }`}
           >
@@ -447,7 +530,7 @@ function CodePanel() {
         tabIndex={0}
         className="mt-4 h-100 flex-1 overflow-auto rounded-lg border border-lp-night-line p-4 font-mono text-xs leading-6 focus-visible:outline-lp-accent-soft sm:p-6 sm:text-sm sm:leading-7"
       >
-        <code>
+        <code key={sample} className="lp-fade-in block">
           {requestSamples[sample].split('\n').map((line, index) => (
             <span key={`${sample}-${index}`} className="block">
               <CodeLine line={line} />
@@ -456,13 +539,14 @@ function CodePanel() {
           ))}
         </code>
       </pre>
-      <a
+      <ActionButton
         href="/playground"
-        className="mt-4 flex min-h-12 items-center justify-between gap-3 rounded-md border border-lp-night-line bg-lp-night-raise px-4 text-sm font-medium text-lp-night-text transition-colors hover:bg-lp-accent-deep focus-visible:outline-lp-accent-soft"
+        variant="pearl"
+        size="lg"
+        className="mt-4 w-full border-transparent text-sm focus-visible:ring-offset-lp-night"
       >
         Try it in the playground
-        <ArrowRight size={17} aria-hidden="true" />
-      </a>
+      </ActionButton>
     </div>
   );
 }
@@ -470,7 +554,7 @@ function CodePanel() {
 function Navigation() {
   const [open, setOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-20 border-b border-lp-line bg-lp-card">
+    <header className="sticky top-0 z-20 border-b border-lp-line bg-lp-card/90 backdrop-blur-md">
       <nav
         aria-label="Primary"
         className="mx-auto flex min-h-18 max-w-384 items-center justify-between gap-3 px-4 sm:px-8 lg:px-10"
@@ -486,7 +570,7 @@ function Navigation() {
             <a
               key={item.href}
               href={item.href}
-              className="text-[13px] text-lp-body transition-colors hover:text-lp-ink"
+              className={`relative py-1 text-[13px] text-lp-body transition-colors ${hoverMotion} after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-lp-ink after:transition-transform after:duration-300 after:ease-[var(--ease-soft)] hover:text-lp-ink hover:after:scale-x-100`}
             >
               {item.label}
             </a>
@@ -495,41 +579,47 @@ function Navigation() {
         <div className="flex items-center gap-2">
           <TextLink
             href={doc('docs/README.md')}
-            className="hidden h-9 items-center rounded-md px-4 text-[13px] text-lp-body transition-colors hover:text-lp-ink sm:flex"
+            className={`hidden h-9 items-center rounded-md px-4 text-[13px] text-lp-body transition-colors ${hoverMotion} hover:text-lp-ink sm:flex`}
           >
             Docs
           </TextLink>
-          <a
-            href="/playground"
-            className="flex h-10 items-center gap-1.5 rounded-md bg-lp-accent px-3 text-sm font-medium text-white transition-colors hover:bg-lp-night sm:px-4"
-          >
-            Playground <ArrowUpRight size={14} aria-hidden="true" />
-          </a>
-          <button
+          <ActionButton href="/playground">Playground</ActionButton>
+          <CandyButton
             type="button"
+            variant="pearl"
+            size="icon"
             aria-label={open ? 'Close menu' : 'Open menu'}
             aria-expanded={open}
+            aria-controls="mobile-navigation"
             onClick={() => setOpen(!open)}
-            className="grid size-9 place-items-center rounded-md text-lp-ink hover:bg-lp-panel md:hidden"
+            className="border border-lp-line focus-visible:ring-lp-ink/30 focus-visible:ring-offset-lp-canvas md:hidden"
           >
-            {open ? <X size={18} /> : <Menu size={18} />}
-          </button>
+            {open ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+          </CandyButton>
         </div>
       </nav>
-      {open && (
-        <div className="border-t border-lp-line px-4 py-3 sm:px-8 md:hidden">
-          {navigation.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="block py-2 text-[14px] text-lp-body hover:text-lp-ink"
-            >
-              {item.label}
-            </a>
-          ))}
+      <div
+        id="mobile-navigation"
+        inert={!open}
+        className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[var(--ease-soft)] md:hidden ${
+          open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-lp-line px-4 py-3 sm:px-8">
+            {navigation.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={`block py-2 text-[14px] text-lp-body transition-colors ${hoverMotion} hover:text-lp-ink`}
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }
@@ -541,9 +631,12 @@ function Hero() {
         <div className="grid gap-4 lg:min-h-156 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="flex flex-col justify-between gap-10 rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-9 lg:p-10 xl:p-12">
             <div>
-              <Eyebrow>Sandboxed Code Execution</Eyebrow>
-              <h1 id="hero-heading" className="mt-5 max-w-2xl text-4xl leading-[1.04] font-semibold tracking-[-0.055em] text-balance text-lp-ink sm:text-5xl xl:text-6xl 2xl:text-7xl">
-                Run untrusted code in a <span className="text-lp-accent">Linux sandbox</span>
+              <h1
+                id="hero-heading"
+                className="max-w-2xl text-4xl leading-[1.04] font-semibold tracking-[-0.055em] text-balance text-lp-ink sm:text-5xl xl:text-6xl 2xl:text-7xl"
+              >
+                Run untrusted code{' '}
+                <span className="text-lp-fade">in a Linux sandbox</span>
               </h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-lp-body xl:text-lg xl:leading-8">
                 Ferrum accepts source code over an HTTP API, queues it durably
@@ -552,19 +645,17 @@ function Hero() {
                 for the verdict.
               </p>
               <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap">
-                <a
-                  href="/playground"
-                  className="flex min-h-12 items-center justify-between gap-3 rounded-md bg-lp-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-lp-night"
-                >
-                  Open playground <ArrowRight size={15} aria-hidden="true" />
-                </a>
-                <TextLink
+                <ActionButton href="/playground" size="lg" className="text-sm">
+                  Open playground
+                </ActionButton>
+                <ActionButton
                   href={doc('docs/submission-api.md')}
-                  className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-lp-line bg-lp-card px-4 text-sm font-medium text-lp-ink transition-colors hover:border-lp-accent"
+                  variant="pearl"
+                  size="lg"
+                  className="text-sm"
                 >
                   API documentation
-                  <ArrowUpRight size={15} aria-hidden="true" />
-                </TextLink>
+                </ActionButton>
               </div>
             </div>
             <figure className="border-t border-lp-line pt-6">
@@ -575,7 +666,10 @@ function Hero() {
                 </span>
               </blockquote>
               <figcaption className="mt-3">
-                <TextLink href={doc('AGENTS.md')} className="text-sm text-lp-fade underline-offset-4 hover:underline">
+                <TextLink
+                  href={doc('AGENTS.md')}
+                  className={`text-sm text-lp-fade underline decoration-transparent underline-offset-4 transition-colors ${hoverMotion} hover:text-lp-ink hover:decoration-current`}
+                >
                   Ferrum engineering guide
                 </TextLink>
               </figcaption>
@@ -590,20 +684,31 @@ function Hero() {
 
 function Stack() {
   return (
-    <section
-      aria-labelledby="stack-heading"
-      className="pt-8 sm:pt-10"
-    >
-      <h2 id="stack-heading" className="mb-3 text-sm font-medium text-lp-body">
+    <section aria-labelledby="stack-heading" className="pt-10 sm:pt-14">
+      <h2 id="stack-heading" className="sr-only">
         Technology stack
       </h2>
       <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-lp-line bg-lp-line sm:grid-cols-4 xl:grid-cols-8">
-        {stack.map(([name, role]) => (
-          <li key={name} className="grid content-center gap-1 bg-lp-card px-4 py-4 lg:px-5">
-            <span className="text-sm font-semibold tracking-tight text-lp-ink">
-              {name}
+        {stack.map(({ icon, role }, index) => (
+          <li
+            key={icon.slug}
+            data-reveal
+            style={revealDelay(index)}
+            className={`group flex flex-col items-center justify-center gap-3 bg-lp-card px-4 py-6 text-center transition-colors ${hoverMotion} hover:bg-lp-panel`}
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className={`size-8 fill-[#8a8a87] transition-[fill] ${hoverMotion} group-hover:fill-lp-ink`}
+            >
+              <path d={icon.path} />
+            </svg>
+            <span className="grid gap-0.5">
+              <span className="text-sm font-semibold tracking-tight text-lp-ink">
+                {icon.title}
+              </span>
+              <span className="text-xs text-lp-fade">{role}</span>
             </span>
-            <span className="font-mono text-xs text-lp-fade">{role}</span>
           </li>
         ))}
       </ul>
@@ -649,8 +754,7 @@ function ApiVisual() {
   ];
   return (
     <div className="min-w-0 rounded-xl border border-lp-night-line bg-lp-night p-5 sm:p-8 xl:p-10">
-      <p className="font-mono text-[11px] text-lp-night-fade">Routes · /v1</p>
-      <ul className="mt-4 divide-y divide-lp-night-line rounded-lg border border-lp-night-line">
+      <ul className="divide-y divide-lp-night-line rounded-lg border border-lp-night-line">
         {rows.map(([method, path, label]) => (
           <li
             key={`${method}${path}`}
@@ -764,7 +868,6 @@ function Products() {
   return (
     <section id="products" className="pt-20 sm:pt-26 lg:pt-32">
       <SectionHeading
-        eyebrow="Products"
         strong="One execution engine,"
         faint="three ways to use it"
       >
@@ -776,13 +879,13 @@ function Products() {
           const Visual = productVisuals[product.id];
           return (
             <Frame key={product.id}>
-              <article id={`product-${product.id}`} className="grid gap-4 lg:min-h-110 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                <div
-                  className="flex flex-col justify-between gap-8 rounded-xl border border-lp-line bg-lp-panel p-6 sm:p-9 xl:p-11"
-                >
+              <article
+                id={`product-${product.id}`}
+                className="grid gap-4 lg:min-h-110 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+              >
+                <div className="flex flex-col justify-between gap-8 rounded-xl border border-lp-line bg-lp-panel p-6 sm:p-9 xl:p-11">
                   <div>
-                    <Eyebrow>{product.kind}</Eyebrow>
-                    <h3 className="mt-3 text-3xl font-semibold tracking-tight text-lp-ink xl:text-4xl">
+                    <h3 className="text-3xl font-semibold tracking-tight text-lp-ink xl:text-4xl">
                       {product.name}
                     </h3>
                     <p className="mt-4 max-w-prose text-base leading-7 text-lp-body">
@@ -792,13 +895,13 @@ function Products() {
                       <FeatureList items={product.features} />
                     </div>
                   </div>
-                  <TextLink
+                  <ActionButton
                     href={product.action.href}
-                    className="flex h-11 w-fit items-center gap-2 rounded-md border border-lp-line bg-lp-card px-5 text-[13px] font-medium text-lp-ink transition-colors hover:border-lp-fade"
+                    variant="pearl"
+                    className="w-fit"
                   >
                     {product.action.label}
-                    <ArrowRight size={15} aria-hidden="true" />
-                  </TextLink>
+                  </ActionButton>
                 </div>
                 <Visual />
               </article>
@@ -814,7 +917,6 @@ function Languages() {
   return (
     <section id="languages" className="pt-20 sm:pt-26 lg:pt-32">
       <SectionHeading
-        eyebrow="Languages"
         strong="Six languages,"
         faint="pinned and"
         trailing="server-controlled"
@@ -823,11 +925,13 @@ function Languages() {
         structured arguments and its own runtime ceilings. Users never choose a
         host binary.
       </SectionHeading>
-      <ul className="mt-8 grid gap-4 sm:mt-10 lg:gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {languages.map((language) => (
+      <ul className="mt-8 grid gap-4 sm:mt-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
+        {languages.map((language, index) => (
           <li
             key={language.name}
-            className="flex min-h-52 flex-col rounded-xl border border-lp-line bg-lp-card p-5 sm:p-7 xl:p-8"
+            data-reveal
+            style={revealDelay(index)}
+            className={`flex min-h-52 flex-col rounded-xl border border-lp-line bg-lp-card p-5 sm:p-7 xl:p-8 ${cardMotion}`}
           >
             <div className="mb-6 flex items-start justify-between gap-3">
               <div>
@@ -869,12 +973,9 @@ function Lifecycle() {
     >
       <Frame>
         <div className="rounded-xl border border-lp-night-line bg-lp-night p-5 sm:p-9 xl:p-12">
-          <p className="text-[12px] font-medium text-lp-accent-soft">
-            How it works
-          </p>
           <h2
             id="lifecycle-heading"
-            className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl xl:text-5xl"
+            className="max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl xl:text-5xl"
           >
             From request to verdict,{' '}
             <span className="text-lp-night-fade">
@@ -883,7 +984,10 @@ function Lifecycle() {
           </h2>
           <ol className="mt-10 grid gap-px overflow-hidden rounded-lg border border-lp-night-line bg-lp-night-line sm:grid-cols-2 lg:grid-cols-3">
             {lifecycle.map(([title, text], index) => (
-              <li key={title} className="min-h-40 bg-lp-night p-5 sm:p-7">
+              <li
+                key={title}
+                className={`min-h-40 bg-lp-night p-5 transition-colors ${hoverMotion} hover:bg-lp-night-raise sm:p-7`}
+              >
                 <span className="font-mono text-[11px] text-lp-night-fade">
                   {String(index + 1).padStart(2, '0')}
                 </span>
@@ -903,21 +1007,21 @@ function Lifecycle() {
 function Security() {
   return (
     <section id="security" className="pt-20 sm:pt-26 lg:pt-32">
-      <SectionHeading
-        eyebrow="Security"
-        strong="Every input"
-        faint="is treated as hostile"
-      >
+      <SectionHeading strong="Every input" faint="is treated as hostile">
         Limits are enforced by Isolate and the kernel’s cgroups, not just
         written in configuration. Each attempt gets a fresh sandbox.
       </SectionHeading>
-      <ul className="mt-8 grid gap-4 sm:mt-10 lg:gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {controls.map(({ icon: Icon, title, text }) => (
+      <ul className="mt-8 grid gap-4 sm:mt-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+        {controls.map(({ icon: Icon, title, text }, index) => (
           <li
             key={title}
-            className="flex min-h-52 flex-col rounded-xl border border-lp-line bg-lp-card p-5 sm:p-7 xl:p-8"
+            data-reveal
+            style={revealDelay(index)}
+            className={`group flex min-h-52 flex-col rounded-xl border border-lp-line bg-lp-card p-5 sm:p-7 xl:p-8 ${cardMotion}`}
           >
-            <span className="grid size-9 place-items-center rounded-lg bg-lp-panel text-lp-ink">
+            <span
+              className={`grid size-9 place-items-center rounded-lg bg-lp-panel text-lp-ink transition-colors ${hoverMotion} group-hover:bg-lp-night group-hover:text-lp-night-text`}
+            >
               <Icon size={17} aria-hidden="true" />
             </span>
             <h3 className="mt-5 text-lg font-semibold text-lp-ink">{title}</h3>
@@ -933,20 +1037,21 @@ function Deploy() {
   return (
     <section id="deploy" className="pt-20 sm:pt-26 lg:pt-32">
       <SectionHeading
-        eyebrow="Deploy"
         strong="Start on your laptop,"
         faint="grow into a worker fleet"
       >
         The API and workers are separate process types. Scale workers by
         measured capacity, not request rate.
       </SectionHeading>
-      <div className="mt-8 grid gap-4 sm:mt-10 lg:gap-5 lg:grid-cols-3">
-        {deployments.map((plan) => (
+      <div className="mt-8 grid gap-4 sm:mt-10 lg:grid-cols-3 lg:gap-5">
+        {deployments.map((plan, index) => (
           <article
             key={plan.name}
-            className={`flex min-h-105 flex-col justify-between gap-8 rounded-xl border p-6 sm:p-8 xl:p-9 ${
+            data-reveal
+            style={revealDelay(index)}
+            className={`flex min-h-105 flex-col justify-between gap-8 rounded-xl border p-6 sm:p-8 xl:p-9 ${cardMotion} ${
               plan.featured
-                ? 'border-lp-night-line bg-lp-night text-white'
+                ? 'border-lp-night-line bg-lp-night text-white hover:border-[#4a4a4a]'
                 : 'border-lp-line bg-lp-card'
             }`}
           >
@@ -982,17 +1087,13 @@ function Deploy() {
               />
               <FeatureList items={plan.features} dark={plan.featured} />
             </div>
-            <TextLink
+            <ActionButton
               href={plan.action.href}
-              className={`flex h-11 items-center justify-between rounded-md px-5 text-[13px] font-medium transition-colors ${
-                plan.featured
-                  ? 'bg-white text-lp-ink hover:bg-lp-panel'
-                  : 'border border-lp-line text-lp-ink hover:border-lp-fade'
-              }`}
+              variant={plan.featured ? 'pearl' : 'obsidian'}
+              className={`w-full ${plan.featured ? 'border-transparent focus-visible:ring-offset-lp-night' : ''}`}
             >
               {plan.action.label}
-              <ArrowRight size={15} aria-hidden="true" />
-            </TextLink>
+            </ActionButton>
           </article>
         ))}
       </div>
@@ -1003,28 +1104,28 @@ function Deploy() {
 function Support() {
   return (
     <section id="support" className="pt-20 sm:pt-26 lg:pt-32">
-      <SectionHeading
-        eyebrow="Support"
-        strong="Get help"
-        faint="when you need it"
-      >
+      <SectionHeading strong="Get help" faint="when you need it">
         Whether you are building a coding platform, checking AI-generated code
         or running assessments, start with the docs and runbooks.
       </SectionHeading>
-      <div className="mt-8 grid gap-4 sm:mt-10 lg:gap-5 md:grid-cols-3">
-        {support.map(({ icon: Icon, title, text, meta, action }) => (
+      <div className="mt-8 grid gap-4 sm:mt-10 md:grid-cols-3 lg:gap-5">
+        {support.map(({ icon: Icon, title, text, meta, action }, index) => (
           <article
             key={title}
-            className="flex min-h-76 flex-col justify-between gap-8 rounded-xl border border-lp-line bg-lp-card p-6 sm:p-8 xl:p-9"
+            data-reveal
+            style={revealDelay(index)}
+            className={`group flex min-h-76 flex-col justify-between gap-8 rounded-xl border border-lp-line bg-lp-card p-6 sm:p-8 xl:p-9 ${cardMotion}`}
           >
             <div>
-              <span className="grid size-10 place-items-center rounded-lg bg-lp-panel text-lp-ink">
+              <span
+                className={`grid size-10 place-items-center rounded-lg bg-lp-panel text-lp-ink transition-colors ${hoverMotion} group-hover:bg-lp-night group-hover:text-lp-night-text`}
+              >
                 <Icon size={18} aria-hidden="true" />
               </span>
-              <h3 className="mt-6 text-xl font-semibold text-lp-ink">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-lp-body">
-                {text}
-              </p>
+              <h3 className="mt-6 text-xl font-semibold text-lp-ink">
+                {title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-lp-body">{text}</p>
               <ul className="mt-5 flex flex-wrap gap-2">
                 {meta.map((item) => (
                   <li
@@ -1036,12 +1137,9 @@ function Support() {
                 ))}
               </ul>
             </div>
-            <TextLink
-              href={action.href}
-              className="flex items-center gap-1.5 text-[13px] font-medium text-lp-ink hover:underline"
-            >
-              {action.label} <ArrowUpRight size={14} aria-hidden="true" />
-            </TextLink>
+            <ActionButton href={action.href} variant="pearl" className="w-fit">
+              {action.label}
+            </ActionButton>
           </article>
         ))}
       </div>
@@ -1055,8 +1153,7 @@ function CallToAction() {
       <Frame>
         <div className="grid min-h-58 items-center gap-8 rounded-xl border border-lp-line bg-lp-panel p-6 sm:p-9 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:p-12">
           <div>
-            <Eyebrow>Get started</Eyebrow>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-lp-ink sm:text-4xl xl:text-5xl">
+            <h2 className="text-3xl font-semibold tracking-tight text-lp-ink sm:text-4xl xl:text-5xl">
               Run your first program{' '}
               <span className="text-lp-fade">in under a minute</span>
             </h2>
@@ -1066,18 +1163,17 @@ function CallToAction() {
             </p>
           </div>
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
-            <a
-              href="/playground"
-              className="flex h-12 items-center justify-between rounded-md bg-lp-night px-5 text-[13px] font-medium text-white transition-colors hover:bg-lp-night-raise"
-            >
-              Open playground <ArrowRight size={15} aria-hidden="true" />
-            </a>
-            <TextLink
+            <ActionButton href="/playground" size="lg" className="text-sm">
+              Open playground
+            </ActionButton>
+            <ActionButton
               href={repository}
-              className="flex h-12 items-center justify-between rounded-md border border-lp-line bg-lp-card px-5 text-[13px] font-medium text-lp-ink transition-colors hover:border-lp-fade"
+              variant="pearl"
+              size="lg"
+              className="text-sm"
             >
-              View on GitHub <ArrowUpRight size={15} aria-hidden="true" />
-            </TextLink>
+              View on GitHub
+            </ActionButton>
           </div>
         </div>
       </Frame>
@@ -1141,7 +1237,7 @@ function Footer() {
                 <li key={label}>
                   <TextLink
                     href={href}
-                    className="text-[13px] text-lp-body transition-colors hover:text-lp-ink"
+                    className={`text-[13px] text-lp-body transition-colors ${hoverMotion} hover:text-lp-ink`}
                   >
                     {label}
                   </TextLink>
@@ -1160,6 +1256,7 @@ function Footer() {
 }
 
 export default function Landing() {
+  useReveal();
   return (
     <div className="min-h-dvh bg-lp-canvas font-sans text-lp-ink antialiased">
       <Navigation />

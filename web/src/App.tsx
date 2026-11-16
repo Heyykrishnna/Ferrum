@@ -16,6 +16,8 @@ import {
   languageSchema,
 } from '../shared/contracts';
 import type { Comparison, Language } from '../shared/contracts';
+import { CandyButton } from '@/components/ui/candy-button';
+
 import { errorMessage, fetchExecutionStatus, fetchLanguages } from './api';
 import { ExecutionPanel } from './ExecutionPanel';
 import { languageChoices, languages } from './languages';
@@ -231,24 +233,28 @@ export default function App() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <CandyButton
               type="button"
+              variant="pearl"
               disabled={!canRun}
               onClick={() => start('run')}
               title="Run with standard input"
-              className="flex h-9 items-center gap-2 rounded-[4px] border border-edge bg-editor px-3.5 text-[13px] font-semibold hover:bg-subtle disabled:opacity-55"
+              leftIcon={<Play aria-hidden="true" />}
+              className="border border-edge font-semibold focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface"
             >
-              <Play size={14} aria-hidden="true" /> Run
-            </button>
-            <button
+              Run
+            </CandyButton>
+            <CandyButton
               type="button"
+              variant="obsidian"
               disabled={!canRun}
               onClick={() => start('submit')}
               title="Judge against expected output"
-              className="flex h-9 items-center gap-2 rounded-[4px] bg-accent px-3.5 text-[13px] font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-55"
+              rightIcon={<ArrowUpRight aria-hidden="true" />}
+              className="font-semibold focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface"
             >
-              Submit <ArrowUpRight size={15} aria-hidden="true" />
-            </button>
+              Submit
+            </CandyButton>
           </div>
         </div>
 
