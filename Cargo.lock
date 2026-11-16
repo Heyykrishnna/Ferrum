@@ -502,6 +502,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrum-worker"
+version = "0.1.0"
+dependencies = [
+ "apalis",
+ "ferrum-application",
+ "ferrum-config",
+ "ferrum-contracts",
+ "ferrum-domain",
+ "ferrum-infrastructure",
+ "ferrum-runtime",
+ "ferrum-sandbox",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"

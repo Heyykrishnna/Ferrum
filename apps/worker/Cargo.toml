@@ -6,7 +6,21 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+apalis.workspace = true
 ferrum-config.workspace = true
-ferrum-runtime.workspace = true
+ferrum-contracts.workspace = true
+ferrum-infrastructure.workspace = true
+ferrum-sandbox.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 tracing.workspace = true
+uuid.workspace = true
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
+ferrum-runtime.workspace = true
+
+[dev-dependencies]
+ferrum-application.workspace = true
+ferrum-domain.workspace = true
+serde_json.workspace = true
