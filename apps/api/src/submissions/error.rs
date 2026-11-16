@@ -51,10 +51,6 @@ impl ApiError {
         Self::new(StatusCode::TOO_MANY_REQUESTS, code, message)
     }
 
-    pub fn conflict(code: &'static str, message: impl Into<String>) -> Self {
-        Self::new(StatusCode::CONFLICT, code, message)
-    }
-
     pub fn bad_request(code: &'static str, message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, code, message)
     }
