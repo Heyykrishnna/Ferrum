@@ -80,11 +80,32 @@ async fn drain<E>(
     }
 }
 
+pub fn redact_secret(token: &str) -> String {
+    if token.len() <= 8 {
+        "[REDACTED]".to_string()
+    } else {
+        format!("{}[REDACTED]", &token[..4])
+    }
+}
+
+pub fn bounded_output_summary(bytes: &[u8]) -> usize {
+    bytes.len()
+}
+
 #[cfg(test)]
 mod tests {
     use std::{convert::Infallible, future};
 
     use super::*;
+
+    #[test]
+    fn redact_secret_masks_sensitive_values() {
+        assert_eq!(redact_secret("secret"), "[REDACTED]");
+        assert_eq!(
+            redact_secret("ferrum_test_token_12345"),
+            "ferr[REDACTED]"
+        );
+    }
 
     #[tokio::test(start_paused = true)]
     async fn unfinished_service_hits_shutdown_deadline() {

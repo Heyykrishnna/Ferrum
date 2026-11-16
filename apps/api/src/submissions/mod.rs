@@ -217,6 +217,13 @@ async fn create(
     );
     let trace_header = headers.get("traceparent").and_then(|v| v.to_str().ok());
     let trace_ctx = ferrum_domain::TraceContext::from_traceparent_or_generate(trace_header);
+    let span = tracing::info_span!(
+        "submission.intake",
+        trace_id = %trace_ctx.trace_id,
+        organization_id = %auth.organization_id
+    );
+    let _guard = span.enter();
+
     let input = SubmissionInput::with_stdin_and_cases(
         &request.language,
         request.source,
@@ -226,6 +233,12 @@ async fn create(
     )?
     .with_traceparent(Some(trace_ctx.to_traceparent()));
     let submission = repository.create(auth.organization_id, key, input).await?;
+    tracing::info!(
+        event = "submission_intake_accepted",
+        trace_id = %trace_ctx.trace_id,
+        submission_id = %submission.id,
+        language = %request.language
+    );
     ferrum_runtime::MetricsRegistry::global()
         .submissions_created_total
         .inc(&[("language", &request.language)]);
