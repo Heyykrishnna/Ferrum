@@ -24,9 +24,9 @@ Give operators a trace from submission to cleanup, alerts for work that stops pr
 
 ## Acceptance checks
 
-- [ ] An operator can follow a submission from intake through persisted outcome and cleanup.
-- [ ] Dashboards separate queue, sandbox initialization, compilation, execution and persistence.
-- [ ] Alerts fire in controlled staging drills and connect to the relevant runbooks.
-- [ ] A repeatable capacity report records hardware, versions, workload and recommended limits.
+- [x] An operator can follow a submission from intake through persisted outcome and cleanup.
+- [x] Dashboards separate queue, sandbox initialization, compilation, execution and persistence.
+- [x] Alerts fire in controlled staging drills and connect to the relevant runbooks.
+- [x] A repeatable capacity report records hardware, versions, workload and recommended limits.
 
 **Handoff** · Use measured capacity and service targets to plan rollout and rollback. [Phase 10](10-production-release.md)
