@@ -446,6 +446,7 @@ name = "ferrum-contracts"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "uuid",
 ]
 
@@ -470,6 +471,7 @@ dependencies = [
  "ferrum-contracts",
  "ferrum-domain",
  "ferrum-judge",
+ "ferrum-runtime",
  "ferrum-sandbox",
  "hex",
  "serde_json",
@@ -523,6 +525,7 @@ name = "ferrum-worker"
 version = "0.1.0"
 dependencies = [
  "apalis",
+ "axum",
  "ferrum-application",
  "ferrum-config",
  "ferrum-contracts",
@@ -534,6 +537,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tokio-util",
+ "tower",
  "tracing",
  "uuid",
 ]

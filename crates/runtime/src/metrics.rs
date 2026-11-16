@@ -187,12 +187,9 @@ impl CounterFamily {
     }
 
     pub fn render(&self, out: &mut String) {
-        let read = self.metrics.read().unwrap();
-        if read.is_empty() {
-            return;
-        }
         let _ = writeln!(out, "# HELP {} {}", self.name, self.help);
         let _ = writeln!(out, "# TYPE {} counter", self.name);
+        let read = self.metrics.read().unwrap();
         for (labels, counter) in read.iter() {
             out.push_str(self.name);
             render_labels(labels, out);
@@ -253,12 +250,9 @@ impl GaugeFamily {
     }
 
     pub fn render(&self, out: &mut String) {
-        let read = self.metrics.read().unwrap();
-        if read.is_empty() {
-            return;
-        }
         let _ = writeln!(out, "# HELP {} {}", self.name, self.help);
         let _ = writeln!(out, "# TYPE {} gauge", self.name);
+        let read = self.metrics.read().unwrap();
         for (labels, gauge) in read.iter() {
             out.push_str(self.name);
             render_labels(labels, out);
@@ -301,12 +295,9 @@ impl HistogramFamily {
     }
 
     pub fn render(&self, out: &mut String) {
-        let read = self.metrics.read().unwrap();
-        if read.is_empty() {
-            return;
-        }
         let _ = writeln!(out, "# HELP {} {}", self.name, self.help);
         let _ = writeln!(out, "# TYPE {} histogram", self.name);
+        let read = self.metrics.read().unwrap();
         for (labels, hist) in read.iter() {
             let (buckets, sum, count) = hist.snapshot();
             for (le, b_count) in buckets {
@@ -643,3 +634,4 @@ mod tests {
         assert!(out.contains("test_hist_seconds_count{stage=\"compile\"} 3"));
     }
 }
+

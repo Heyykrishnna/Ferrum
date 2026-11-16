@@ -141,9 +141,9 @@ impl OutcomeClass {
     pub fn from_verdict(verdict: Option<Verdict>) -> Self {
         match verdict {
             Some(Verdict::Accepted) => Self::Success,
-            Some(Verdict::WrongAnswer) | Some(Verdict::CompilationError) | Some(Verdict::RuntimeError) => {
-                Self::UserError
-            }
+            Some(Verdict::WrongAnswer)
+            | Some(Verdict::CompilationError)
+            | Some(Verdict::RuntimeError) => Self::UserError,
             Some(Verdict::TimeLimitExceeded)
             | Some(Verdict::MemoryLimitExceeded)
             | Some(Verdict::OutputLimitExceeded) => Self::LimitExceeded,
@@ -183,18 +183,53 @@ mod tests {
     #[test]
     fn invalid_traceparent_rejected() {
         assert!(TraceContext::parse_traceparent("invalid").is_none());
-        assert!(TraceContext::parse_traceparent("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").is_none());
-        assert!(TraceContext::parse_traceparent("00-00000000000000000000000000000000-00f067aa0ba902b7-01").is_none());
-        assert!(TraceContext::parse_traceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01").is_none());
-        assert!(TraceContext::parse_traceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-0g").is_none());
+        assert!(
+            TraceContext::parse_traceparent(
+                "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+            )
+            .is_none()
+        );
+        assert!(
+            TraceContext::parse_traceparent(
+                "00-00000000000000000000000000000000-00f067aa0ba902b7-01"
+            )
+            .is_none()
+        );
+        assert!(
+            TraceContext::parse_traceparent(
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01"
+            )
+            .is_none()
+        );
+        assert!(
+            TraceContext::parse_traceparent(
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-0g"
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn outcome_class_mapping() {
-        assert_eq!(OutcomeClass::from_verdict(Some(Verdict::Accepted)), OutcomeClass::Success);
-        assert_eq!(OutcomeClass::from_verdict(Some(Verdict::WrongAnswer)), OutcomeClass::UserError);
-        assert_eq!(OutcomeClass::from_verdict(Some(Verdict::TimeLimitExceeded)), OutcomeClass::LimitExceeded);
-        assert_eq!(OutcomeClass::from_verdict(Some(Verdict::InternalError)), OutcomeClass::PlatformError);
-        assert_eq!(OutcomeClass::from_verdict(None), OutcomeClass::PlatformError);
+        assert_eq!(
+            OutcomeClass::from_verdict(Some(Verdict::Accepted)),
+            OutcomeClass::Success
+        );
+        assert_eq!(
+            OutcomeClass::from_verdict(Some(Verdict::WrongAnswer)),
+            OutcomeClass::UserError
+        );
+        assert_eq!(
+            OutcomeClass::from_verdict(Some(Verdict::TimeLimitExceeded)),
+            OutcomeClass::LimitExceeded
+        );
+        assert_eq!(
+            OutcomeClass::from_verdict(Some(Verdict::InternalError)),
+            OutcomeClass::PlatformError
+        );
+        assert_eq!(
+            OutcomeClass::from_verdict(None),
+            OutcomeClass::PlatformError
+        );
     }
 }
