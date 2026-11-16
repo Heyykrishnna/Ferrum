@@ -63,7 +63,7 @@ async fn serve() -> Result<(), Failure> {
     let database = DatabaseSettings::load()?;
     let pool = connect(&database).await?;
     let schema_ready = sqlx::query_scalar::<_, bool>(
-        "SELECT to_regclass('execution_attempts') IS NOT NULL AND to_regclass('compilation_results') IS NOT NULL AND to_regclass('submission_case_results') IS NOT NULL AND to_regclass('apalis.jobs') IS NOT NULL",
+        "SELECT to_regclass('execution_attempts') IS NOT NULL AND to_regclass('compilation_results') IS NOT NULL AND to_regclass('submission_case_results') IS NOT NULL AND to_regclass('api_keys') IS NOT NULL AND to_regclass('apalis.jobs') IS NOT NULL",
     )
     .fetch_one(&pool)
     .await

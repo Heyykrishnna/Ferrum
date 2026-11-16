@@ -148,7 +148,7 @@ pub async fn renew_attempt_lease(
     pool: &PgPool,
     job: &ExecuteSubmission,
     owner: ExecutionOwner,
-) -> Result<(), ExecutionError> {
+) -> Result<bool, ExecutionError> {
     let updated = sqlx::query(
         "UPDATE execution_attempts SET lease_expires_at = clock_timestamp() + interval '30 seconds'
          WHERE organization_id = $1 AND submission_id = $2 AND id = $3 AND worker_id = $4
@@ -164,7 +164,18 @@ pub async fn renew_attempt_lease(
     if updated.rows_affected() != 1 {
         return Err(ExecutionError::Lease);
     }
-    Ok(())
+
+    let cancel_requested = sqlx::query_scalar::<_, bool>(
+        "SELECT cancel_requested FROM submissions WHERE organization_id = $1 AND id = $2",
+    )
+    .bind(job.organization_id)
+    .bind(job.submission_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(execution_storage)?
+    .unwrap_or(false);
+
+    Ok(!cancel_requested)
 }
 
 pub enum AttemptReport<'a> {

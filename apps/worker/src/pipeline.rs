@@ -141,11 +141,22 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
                 _ = heartbeat.tick() => {
                     let renewal = tokio::time::timeout(HEARTBEAT, renew_attempt_lease(&self.pool, job, self.owner))
                         .await.unwrap_or(Err(ExecutionError::Lease));
-                    if let Err(error) = renewal {
-                        cancel.cancel();
-                        execution.await;
-                        self.failure.cancel();
-                        return Err(error);
+                    match renewal {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            tracing::info!(
+                                event = "execution_cancellation_requested",
+                                submission_id = %job.submission_id,
+                                attempt_id = %job.attempt_id
+                            );
+                            cancel.cancel();
+                        }
+                        Err(error) => {
+                            cancel.cancel();
+                            execution.await;
+                            self.failure.cancel();
+                            return Err(error);
+                        }
                     }
                 }
             }
