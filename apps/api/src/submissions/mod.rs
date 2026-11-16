@@ -12,7 +12,9 @@ use axum::{
 };
 use ferrum_application::{IdempotencyKey, SubmissionRepository};
 use ferrum_config::DevelopmentCaller;
-use ferrum_domain::{ProcessingState, RequestedLimits, Submission, SubmissionInput, Verdict};
+use ferrum_domain::{
+    ProcessingState, RequestedLimits, Submission, SubmissionInput, SubmissionResult, Verdict,
+};
 use ferrum_infrastructure::PostgresSubmissions;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
@@ -37,6 +39,8 @@ struct SubmissionResponse {
     id: Uuid,
     state: ProcessingState,
     verdict: Option<Verdict>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<SubmissionResult>,
 }
 
 impl From<Submission> for SubmissionResponse {
@@ -45,6 +49,7 @@ impl From<Submission> for SubmissionResponse {
             id: submission.id,
             state: submission.state,
             verdict: submission.verdict,
+            result: submission.result,
         }
     }
 }
