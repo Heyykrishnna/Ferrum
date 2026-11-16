@@ -1,0 +1,83 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "System Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "id": 2,
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_http_requests_total[1m])) by (method, path)", "legendFormat": "{{method}} {{path}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "id": 3,
+      "title": "End-to-End Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(ferrum_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(ferrum_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(ferrum_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "id": 4,
+      "title": "Oldest Outbox Age & Unpublished Count",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "ferrum_outbox_oldest_event_age_seconds", "legendFormat": "Oldest Age (s)" },
+        { "expr": "ferrum_outbox_unpublished_count", "legendFormat": "Unpublished Events" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 5,
+      "title": "Submissions Created by Language",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_submissions_created_total[1m])) by (language)", "legendFormat": "{{language}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 6,
+      "title": "Worker Active vs Reserved Slots",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "ferrum_worker_active_executions", "legendFormat": "Active Executions" },
+        { "expr": "ferrum_worker_capacity_reserved_slots", "legendFormat": "Reserved Slots" },
+        { "expr": "ferrum_worker_capacity_quarantined_slots", "legendFormat": "Quarantined Slots" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["ferrum", "overview"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Ferrum - Platform Overview",
+  "uid": "ferrum-platform-overview"
+}

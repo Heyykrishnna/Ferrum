@@ -1,0 +1,67 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Language & Verdict Analytics",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 2,
+      "title": "Submission Ingestion Rate by Language",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_submissions_created_total[1m])) by (language)", "legendFormat": "{{language}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "Compilation Duration by Language (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(ferrum_compilation_duration_seconds_bucket[5m])) by (le, language))", "legendFormat": "{{language}} p95 compile" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 4,
+      "title": "Compilation Failures by Language",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_compilation_failures_total[1m])) by (language, outcome)", "legendFormat": "{{language}} - {{outcome}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 5,
+      "title": "Verdict Distribution",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_verdicts_total[1m])) by (verdict)", "legendFormat": "{{verdict}}" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["ferrum", "languages", "verdicts"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Ferrum - Language and Verdict Analytics",
+  "uid": "ferrum-language-and-verdict"
+}

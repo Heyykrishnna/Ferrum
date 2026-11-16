@@ -1,0 +1,81 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Sandbox & Execution Internals",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 2,
+      "title": "Latency Decomposition by Stage (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(ferrum_stage_duration_seconds_bucket[5m])) by (le, stage))", "legendFormat": "{{stage}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "Resource Limit Violations",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_execution_limit_violations_total[1m])) by (limit_type)", "legendFormat": "{{limit_type}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "kbytes" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 4,
+      "title": "Peak Memory Consumption (p50 / p95 / p99)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(ferrum_execution_peak_memory_kibibytes_bucket[5m])) by (le))", "legendFormat": "p50 Memory" },
+        { "expr": "histogram_quantile(0.95, sum(rate(ferrum_execution_peak_memory_kibibytes_bucket[5m])) by (le))", "legendFormat": "p95 Memory" },
+        { "expr": "histogram_quantile(0.99, sum(rate(ferrum_execution_peak_memory_kibibytes_bucket[5m])) by (le))", "legendFormat": "p99 Memory" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 5,
+      "title": "Program CPU & Wall Time (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(ferrum_execution_cpu_time_milliseconds_bucket[5m])) by (le))", "legendFormat": "p95 CPU Time" },
+        { "expr": "histogram_quantile(0.95, sum(rate(ferrum_execution_wall_time_milliseconds_bucket[5m])) by (le))", "legendFormat": "p95 Wall Time" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 17 },
+      "id": 6,
+      "title": "Sandbox Cleanup Dispositions",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(ferrum_sandbox_cleanups_total[1m])) by (disposition)", "legendFormat": "{{disposition}}" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["ferrum", "sandbox", "execution"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Ferrum - Sandbox and Execution",
+  "uid": "ferrum-sandbox-and-execution"
+}

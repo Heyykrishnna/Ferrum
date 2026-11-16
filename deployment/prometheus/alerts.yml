@@ -1,0 +1,74 @@
+groups:
+  - name: ferrum_platform_alerts
+    rules:
+      - alert: FerrumOutboxDispatchBacklog
+        expr: ferrum_outbox_oldest_event_age_seconds > 30
+        for: 15s
+        labels:
+          severity: critical
+          tier: platform
+        annotations:
+          summary: "Outbox events pending dispatch exceed 30s SLA"
+          description: "Oldest unpublished outbox event is older than 30s. Workers or dispatcher loop may be stalled."
+          runbook_url: "docs/runbooks/outbox-and-dispatch-recovery.md"
+          owner: "platform-oncall"
+
+      - alert: FerrumSandboxCleanupQuarantined
+        expr: ferrum_worker_capacity_quarantined_slots > 0
+        for: 10s
+        labels:
+          severity: warning
+          tier: worker
+        annotations:
+          summary: "Execution sandbox quarantined due to unresolved cleanup"
+          description: "A sandbox failed post-execution verification or cleanup and is holding capacity in quarantine."
+          runbook_url: "docs/runbooks/sandbox-cleanup-quarantine.md"
+          owner: "sandbox-oncall"
+
+      - alert: FerrumWorkerCapacityExhausted
+        expr: ferrum_worker_capacity_reserved_slots >= 1
+        for: 30s
+        labels:
+          severity: warning
+          tier: worker
+        annotations:
+          summary: "Worker execution concurrency saturated"
+          description: "All worker execution slots are continuously reserved. Consider scaling worker fleet."
+          runbook_url: "docs/runbooks/stuck-executions-and-leases.md"
+          owner: "capacity-oncall"
+
+      - alert: FerrumPlatformHighFailureRate
+        expr: (rate(ferrum_http_requests_total{status=~"5.."}[1m]) / (rate(ferrum_http_requests_total[1m]) + 0.001)) > 0.05
+        for: 30s
+        labels:
+          severity: critical
+          tier: api
+        annotations:
+          summary: "API HTTP 5xx error rate exceeds 5%"
+          description: "High error rate observed in public API endpoint responses."
+          runbook_url: "docs/runbooks/isolation-incident-containment.md"
+          owner: "api-oncall"
+
+      - alert: FerrumStuckAttemptsDetected
+        expr: rate(ferrum_reconciled_items_total{target="stale_attempts"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          tier: reliability
+        annotations:
+          summary: "Stale execution attempts reconciled after lease expiration"
+          description: "Executions expired their 30s lease and were recovered by background reconciliation."
+          runbook_url: "docs/runbooks/stuck-executions-and-leases.md"
+          owner: "reliability-oncall"
+
+      - alert: FerrumQueueLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(ferrum_stage_duration_seconds_bucket{stage="queue"}[5m])) by (le)) > 5.0
+        for: 1m
+        labels:
+          severity: warning
+          tier: queue
+        annotations:
+          summary: "P95 queue wait time exceeds 5 seconds"
+          description: "Submissions spend excessive time waiting in Apalis queue prior to worker claim."
+          runbook_url: "docs/runbooks/outbox-and-dispatch-recovery.md"
+          owner: "queue-oncall"
