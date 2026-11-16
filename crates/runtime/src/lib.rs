@@ -101,10 +101,7 @@ mod tests {
     #[test]
     fn redact_secret_masks_sensitive_values() {
         assert_eq!(redact_secret("secret"), "[REDACTED]");
-        assert_eq!(
-            redact_secret("ferrum_test_token_12345"),
-            "ferr[REDACTED]"
-        );
+        assert_eq!(redact_secret("ferrum_test_token_12345"), "ferr[REDACTED]");
     }
 
     #[tokio::test(start_paused = true)]

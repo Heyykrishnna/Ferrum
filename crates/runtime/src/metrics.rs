@@ -123,7 +123,10 @@ impl AtomicHistogram {
             } else {
                 Box::leak(format!("{bound}").into_boxed_str())
             };
-            bucket_counts.push((label as &'static str, self.counts[i].load(Ordering::Relaxed)));
+            bucket_counts.push((
+                label as &'static str,
+                self.counts[i].load(Ordering::Relaxed),
+            ));
         }
         let sum = self.sum_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0;
         let count = self.total_count.load(Ordering::Relaxed);
@@ -559,7 +562,8 @@ impl MetricsRegistry {
         self.worker_executions_total.render(&mut out);
         self.stage_duration_seconds.render(&mut out);
 
-        self.sandbox_initialization_duration_seconds.render(&mut out);
+        self.sandbox_initialization_duration_seconds
+            .render(&mut out);
         self.sandbox_cleanup_duration_seconds.render(&mut out);
         self.sandbox_cleanups_total.render(&mut out);
         self.sandbox_quarantines_total.render(&mut out);
@@ -634,4 +638,3 @@ mod tests {
         assert!(out.contains("test_hist_seconds_count{stage=\"compile\"} 3"));
     }
 }
-

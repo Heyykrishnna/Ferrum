@@ -162,15 +162,14 @@ impl ApiSettings {
 impl WorkerSettings {
     pub fn load() -> Result<Self, ConfigError> {
         let file: WorkerFile = read_file("FERRUM_WORKER_CONFIG")?;
-        let metrics_listen_addr = match read_env("FERRUM_WORKER_METRICS_LISTEN_ADDR")?
-            .or(file.metrics_listen_addr)
-        {
-            Some(value) => Some(value.parse().map_err(|_| ConfigError::InvalidSetting {
-                setting: "metrics_listen_addr (FERRUM_WORKER_METRICS_LISTEN_ADDR)",
-                expected: "use an IP address and a TCP port, for example 127.0.0.1:9090",
-            })?),
-            None => None,
-        };
+        let metrics_listen_addr =
+            match read_env("FERRUM_WORKER_METRICS_LISTEN_ADDR")?.or(file.metrics_listen_addr) {
+                Some(value) => Some(value.parse().map_err(|_| ConfigError::InvalidSetting {
+                    setting: "metrics_listen_addr (FERRUM_WORKER_METRICS_LISTEN_ADDR)",
+                    expected: "use an IP address and a TCP port, for example 127.0.0.1:9090",
+                })?),
+                None => None,
+            };
         Ok(Self {
             process: resolve_process(
                 file.process,

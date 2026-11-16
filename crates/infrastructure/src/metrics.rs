@@ -20,9 +20,7 @@ pub async fn collect_storage_metrics(pool: &PgPool) -> Result<(), sqlx::Error> {
     .fetch_one(pool)
     .await?;
 
-    metrics
-        .outbox_unpublished_count
-        .set(&[], unpublished_count);
+    metrics.outbox_unpublished_count.set(&[], unpublished_count);
     metrics
         .outbox_oldest_event_age_seconds
         .set(&[], oldest_age.max(0.0) as i64);
@@ -41,4 +39,3 @@ pub async fn collect_storage_metrics(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     Ok(())
 }
-

@@ -147,9 +147,8 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
     }
 
     async fn execute(&self, job: &ExecuteSubmission) -> Result<(), ExecutionError> {
-        let trace_ctx = ferrum_domain::TraceContext::from_traceparent_or_generate(
-            job.traceparent.as_deref(),
-        );
+        let trace_ctx =
+            ferrum_domain::TraceContext::from_traceparent_or_generate(job.traceparent.as_deref());
         let trace_id = trace_ctx.trace_id.as_str();
 
         let span = tracing::info_span!(
@@ -167,9 +166,10 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
 
         let admission_start = std::time::Instant::now();
         let claim_res = claim_execution(&self.pool, job, self.owner).await;
-        metrics
-            .stage_duration_seconds
-            .observe(&[("stage", "admission")], admission_start.elapsed().as_secs_f64());
+        metrics.stage_duration_seconds.observe(
+            &[("stage", "admission")],
+            admission_start.elapsed().as_secs_f64(),
+        );
 
         let input = match claim_res? {
             Some(input) => input,
@@ -192,13 +192,9 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
             Ok(valid) => valid,
             Err(_) => {
                 let persist_start = std::time::Instant::now();
-                let result = finalize_execution(
-                    &self.pool,
-                    job,
-                    self.owner,
-                    AttemptReport::InvalidInput,
-                )
-                .await;
+                let result =
+                    finalize_execution(&self.pool, job, self.owner, AttemptReport::InvalidInput)
+                        .await;
                 metrics.stage_duration_seconds.observe(
                     &[("stage", "persistence")],
                     persist_start.elapsed().as_secs_f64(),
@@ -301,12 +297,16 @@ impl<S: Sandbox + Send + Sync + 'static> Pipeline<S> {
                         .execution_limit_violations_total
                         .inc(&[("limit_type", "memory")]);
                 }
-                ferrum_sandbox::ProgramOutcome::OutputLimit(ferrum_sandbox::OutputStream::Stdout) => {
+                ferrum_sandbox::ProgramOutcome::OutputLimit(
+                    ferrum_sandbox::OutputStream::Stdout,
+                ) => {
                     metrics
                         .execution_limit_violations_total
                         .inc(&[("limit_type", "stdout")]);
                 }
-                ferrum_sandbox::ProgramOutcome::OutputLimit(ferrum_sandbox::OutputStream::Stderr) => {
+                ferrum_sandbox::ProgramOutcome::OutputLimit(
+                    ferrum_sandbox::OutputStream::Stderr,
+                ) => {
                     metrics
                         .execution_limit_violations_total
                         .inc(&[("limit_type", "stderr")]);

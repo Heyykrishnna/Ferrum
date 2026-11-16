@@ -59,7 +59,9 @@ pub async fn dispatch_execution(pool: &PgPool) -> Result<bool, ExecutionError> {
 
     let duration = start.elapsed().as_secs_f64();
     let metrics = ferrum_runtime::MetricsRegistry::global();
-    metrics.outbox_dispatch_duration_seconds.observe(&[], duration);
+    metrics
+        .outbox_dispatch_duration_seconds
+        .observe(&[], duration);
     metrics.outbox_events_total.inc(&[
         ("event_type", event.event_type.as_str()),
         ("status", "published"),
