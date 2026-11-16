@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 apalis.workspace = true
+axum.workspace = true
 ferrum-config.workspace = true
 ferrum-contracts.workspace = true
 ferrum-domain.workspace = true
@@ -24,3 +25,4 @@ uuid.workspace = true
 ferrum-application.workspace = true
 ferrum-domain.workspace = true
 serde_json.workspace = true
+tower.workspace = true

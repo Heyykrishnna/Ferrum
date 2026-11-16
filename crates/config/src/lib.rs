@@ -61,6 +61,7 @@ pub struct SubmissionSettings {
 #[derive(Debug)]
 pub struct WorkerSettings {
     pub process: ProcessSettings,
+    pub metrics_listen_addr: Option<SocketAddr>,
 }
 
 #[derive(Debug, Error)]
@@ -93,6 +94,7 @@ struct ApiFile {
 #[serde(default, deny_unknown_fields)]
 struct WorkerFile {
     process: ProcessFile,
+    metrics_listen_addr: Option<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -160,12 +162,22 @@ impl ApiSettings {
 impl WorkerSettings {
     pub fn load() -> Result<Self, ConfigError> {
         let file: WorkerFile = read_file("FERRUM_WORKER_CONFIG")?;
+        let metrics_listen_addr = match read_env("FERRUM_WORKER_METRICS_LISTEN_ADDR")?
+            .or(file.metrics_listen_addr)
+        {
+            Some(value) => Some(value.parse().map_err(|_| ConfigError::InvalidSetting {
+                setting: "metrics_listen_addr (FERRUM_WORKER_METRICS_LISTEN_ADDR)",
+                expected: "use an IP address and a TCP port, for example 127.0.0.1:9090",
+            })?),
+            None => None,
+        };
         Ok(Self {
             process: resolve_process(
                 file.process,
                 "FERRUM_WORKER_SHUTDOWN_TIMEOUT_MS",
                 WORKER_SHUTDOWN_MS,
             )?,
+            metrics_listen_addr,
         })
     }
 }

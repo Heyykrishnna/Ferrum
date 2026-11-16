@@ -30,6 +30,7 @@ async fn run() -> Result<(), Failure> {
             Ok(())
         }
         [command] if command == "reconcile" => reconcile_cli().await,
+        [command] if command == "metrics" => metrics_cli().await,
         [cmd, sub] if cmd == "quarantine" && sub == "list" => quarantine_list_cli().await,
         [cmd, sub, id] if cmd == "quarantine" && sub == "resolve" => {
             quarantine_resolve_cli(id).await
@@ -38,7 +39,7 @@ async fn run() -> Result<(), Failure> {
             quarantine_resolve_host_cli(id).await
         }
         _ => Err(
-            "usage: ferrum-worker [migrate | reconcile | quarantine list | quarantine resolve <attempt_id> | quarantine resolve-host <host_id>]".into(),
+            "usage: ferrum-worker [migrate | reconcile | metrics | quarantine list | quarantine resolve <attempt_id> | quarantine resolve-host <host_id>]".into(),
         ),
     }
 }
@@ -56,6 +57,35 @@ async fn reconcile_cli() -> Result<(), Failure> {
     };
     println!("{}", serde_json::to_string_pretty(&summary)?);
     Ok(())
+}
+
+async fn metrics_cli() -> Result<(), Failure> {
+    let settings = DatabaseSettings::load()?;
+    let pool = connect(&settings).await?;
+    ferrum_infrastructure::collect_storage_metrics(&pool).await?;
+    print!("{}", ferrum_runtime::render_metrics());
+    Ok(())
+}
+
+pub fn metrics_router() -> axum::Router {
+    axum::Router::new()
+        .route(
+            "/metrics",
+            axum::routing::get(|| async {
+                (
+                    axum::http::StatusCode::OK,
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        "text/plain; version=0.0.4; charset=utf-8",
+                    )],
+                    ferrum_runtime::render_metrics(),
+                )
+            }),
+        )
+        .route(
+            "/health/live",
+            axum::routing::get(|| async { "{\"status\":\"live\"}" }),
+        )
 }
 
 async fn quarantine_list_cli() -> Result<(), Failure> {
@@ -135,6 +165,19 @@ async fn serve() -> Result<(), Failure> {
     let shutdown = Shutdown::install()?;
     let stop = shutdown.token();
 
+    if let Some(metrics_addr) = settings.metrics_listen_addr {
+        let metrics_stop = stop.clone();
+        tokio::spawn(async move {
+            if let Ok(listener) = tokio::net::TcpListener::bind(metrics_addr).await {
+                tracing::info!(event = "worker_metrics_listening", addr = %metrics_addr);
+                let app = metrics_router();
+                let _ = axum::serve(listener, app)
+                    .with_graceful_shutdown(metrics_stop.cancelled_owned())
+                    .await;
+            }
+        });
+    }
+
     shutdown.run(settings.process.shutdown_timeout, async move {
         let sandbox = Isolate::open_with_toolchains().await?;
         recover_after_host_probe(&pool, owner).await?;
@@ -143,4 +186,28 @@ async fn serve() -> Result<(), Failure> {
         tracing::info!(event = "worker_stopped");
         Ok::<(), Failure>(())
     }).await.map_err(|error| -> Failure { error.to_string().into() })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn worker_metrics_router_serves_metrics_and_live() {
+        let app = metrics_router();
+        let request = axum::http::Request::builder()
+            .uri("/metrics")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        let live_request = axum::http::Request::builder()
+            .uri("/health/live")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let live_response = app.oneshot(live_request).await.unwrap();
+        assert_eq!(live_response.status(), axum::http::StatusCode::OK);
+    }
 }
