@@ -153,7 +153,7 @@ def main() -> None:
     db = Database()
     with db.running() as url:
         org_id = str(uuid4())
-        dev_token = secrets.token_hex(20)
+        dev_token = secrets.token_hex(32)
         env = api_env(url, org_id, dev_token)
 
         subprocess.run([api, "migrate"], env=env, check=True, timeout=20)
