@@ -98,6 +98,35 @@ export function setup() {
     throw new Error(`API is missing language profiles: ${missing.join(", ")}`);
   }
 
+  for (let i = 0; i < 5; i += 1) {
+    const program = PROGRAMS[i % PROGRAMS.length];
+    const warmup = http.post(
+      `${base}/v1/submissions`,
+      JSON.stringify({ language: program.language, source: program.source }),
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `perf.warmup.${i}.${Date.now()}`,
+        },
+        timeout: "10s",
+        tags: { name: "warmup" },
+      },
+    );
+    const location = warmup.headers.Location || warmup.headers.location;
+    if (warmup.status !== 202 || !location) {
+      throw new Error(`Warmup intake failed with status ${warmup.status}`);
+    }
+    const cancel = http.post(`${base}${location}/cancel`, null, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: "10s",
+      tags: { name: "warmup_cancel" },
+    });
+    if (cancel.status !== 200) {
+      throw new Error(`Warmup cancel failed with status ${cancel.status}`);
+    }
+  }
+
   return { base, token };
 }
 

@@ -26,9 +26,9 @@ on:
         type: string
         default: "10"
       duration:
-        description: Benchmark duration (e.g. 15s, 1m)
+        description: Benchmark duration (e.g. 20s, 1m)
         type: string
-        default: "15s"
+        default: "20s"
 
 permissions:
   contents: read
@@ -60,7 +60,7 @@ jobs:
       CARGO_TERM_COLOR: always
       FERRUM_DATABASE_URL: postgres://ferrum:ferrum_perf_password@127.0.0.1:5432/ferrum_perf
       FERRUM_PERF_RATE: ${{ inputs.rate || '10' }}
-      FERRUM_PERF_DURATION: ${{ inputs.duration || '15s' }}
+      FERRUM_PERF_DURATION: ${{ inputs.duration || '20s' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
