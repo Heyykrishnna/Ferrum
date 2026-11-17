@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  rust-quality:
+    name: Rust Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Check workspace targets
+        run: cargo check --workspace --all-targets --locked
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Run unit tests
+        run: cargo test --workspace --locked
+      - name: Build release binaries
+        run: cargo build --workspace --release --locked
+
+  web-quality:
+    name: Web Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Check formatting
+        run: npm run format:check
+      - name: Run ESLint
+        run: npm run lint
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+      - name: Run server tests
+        run: npm test
+      - name: Build web bundle
+        run: npm run build
+
+  observability-and-contracts:
+    name: Observability & Contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify contracts, OpenAPI, dashboards, migrations, and workflows
+        run: python3 scripts/ci/verify-contracts.py
+      - name: Validate Prometheus config and alert unit tests
+        run: |
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --entrypoint /bin/promtool \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/deployment/prometheus,dst=/etc/prometheus,readonly" \
+            prom/prometheus:v3.2.1 check config /etc/prometheus/prometheus.yml
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --entrypoint /bin/promtool \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/deployment/prometheus,dst=/rules,readonly" \
+            prom/prometheus:v3.2.1 check rules /rules/alerts.yml
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --entrypoint /bin/promtool \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/deployment/prometheus,dst=/rules,readonly" \
+            prom/prometheus:v3.2.1 test rules /rules/alerts.test.yml
+
+  workflow-lint:
+    name: Workflow & Script Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: actionlint
+      - name: Lint GitHub workflows
+        run: actionlint
+      - name: Lint shell scripts
+        run: shellcheck scripts/ci/*.sh deployment/*.sh
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - rust-quality
+      - web-quality
+      - observability-and-contracts
+      - workflow-lint
+    steps:
+      - name: Enforce all quality gates
+        env:
+          RUST_RESULT: ${{ needs.rust-quality.result }}
+          WEB_RESULT: ${{ needs.web-quality.result }}
+          CONTRACTS_RESULT: ${{ needs.observability-and-contracts.result }}
+          LINT_RESULT: ${{ needs.workflow-lint.result }}
+        run: |
+          if [[ "${RUST_RESULT}" != "success" || "${WEB_RESULT}" != "success" || "${CONTRACTS_RESULT}" != "success" || "${LINT_RESULT}" != "success" ]]; then
+            echo "CI quality gates failed: rust=${RUST_RESULT} web=${WEB_RESULT} contracts=${CONTRACTS_RESULT} lint=${LINT_RESULT}" >&2
+            exit 1
+          fi
+
