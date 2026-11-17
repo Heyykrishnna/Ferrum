@@ -10,9 +10,9 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "apalis"
-version = "1.0.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4c83691f0f26716d21207e3fd154086a19cd25f7716133fa2f1260ffd73508d"
+checksum = "e1cb7bae899855cc8061713337c566c8ef1faac22c1eef94105c8825b12a8f03"
 dependencies = [
  "apalis-core",
  "futures-util",
@@ -58,9 +58,9 @@ dependencies = [
 
 [[package]]
 name = "apalis-postgres"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "947ad881f4102c5a4d6bb4f117ed38c1b4fe15868631facbc858aab57e3ad38d"
+checksum = "44a53e4a05f8582a1acf316a892fa9b50f124c8d5cc35fcd28506e8a103c636d"
 dependencies = [
  "apalis-codec",
  "apalis-core",
