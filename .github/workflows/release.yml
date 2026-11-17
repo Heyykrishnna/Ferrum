@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Dry-run release version label (does not publish a GitHub Release)
+        type: string
+        default: "0.0.0-dryrun"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-release:
+    name: Verify Release Readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      publish: ${{ steps.meta.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Resolve release version metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            version="${REF_NAME#v}"
+            if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "FAIL: tag ${REF_NAME} is not valid semver" >&2
+              exit 1
+            fi
+            echo "version=${version}" >> "${GITHUB_OUTPUT}"
+            echo "publish=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "version=${INPUT_VERSION#v}" >> "${GITHUB_OUTPUT}"
+            echo "publish=false" >> "${GITHUB_OUTPUT}"
+          fi
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit
+      - name: Run release preflight quality and security checks
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
+          cargo deny --locked check
+          cargo audit --deny warnings
+          python3 -I scripts/ci/verify-contracts.py
+
+  build-linux-release:
+    name: Build Release (${{ matrix.target }})
+    needs: verify-release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    env:
+      CARGO_TERM_COLOR: always
+      RELEASE_VERSION: ${{ needs.verify-release.outputs.version }}
+      TARGET_TRIPLE: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binaries
+        run: cargo build --release --bins --locked
+      - name: Package release archive and SHA256 checksum
+        run: bash scripts/ci/package-release.sh "${RELEASE_VERSION}" "${TARGET_TRIPLE}" dist
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: dist/ferrum-${{ needs.verify-release.outputs.version }}-${{ matrix.target }}.cdx.json
+          upload-artifact: false
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/ferrum-${{ needs.verify-release.outputs.version }}-${{ matrix.target }}.spdx.json
+          upload-artifact: false
+      - name: Attest SLSA build provenance and SPDX SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/ferrum-${{ needs.verify-release.outputs.version }}-${{ matrix.target }}.tar.gz
+          sbom-path: dist/ferrum-${{ needs.verify-release.outputs.version }}-${{ matrix.target }}.spdx.json
+      - name: Upload target release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/
+          retention-days: 14
+
+  build-web-release:
+    name: Build Web Release Bundle
+    needs: verify-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_VERSION: ${{ needs.verify-release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build and verify web bundle
+        working-directory: web
+        run: |
+          npm ci
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Package web archive and checksum
+        run: |
+          mkdir -p dist
+          archive="ferrum-web-${RELEASE_VERSION}.tar.gz"
+          tar -C web -czf "dist/${archive}" dist server shared package.json package-lock.json
+          (cd dist && sha256sum "${archive}" > "${archive}.sha256")
+      - name: Generate web SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./web
+          format: spdx-json
+          output-file: dist/ferrum-web-${{ needs.verify-release.outputs.version }}.spdx.json
+          upload-artifact: false
+      - name: Attest web build provenance and SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/ferrum-web-${{ needs.verify-release.outputs.version }}.tar.gz
+          sbom-path: dist/ferrum-web-${{ needs.verify-release.outputs.version }}.spdx.json
+      - name: Upload web release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-web
+          path: dist/
+          retention-days: 14
+
+  publish-release:
+    name: Publish GitHub Release
+    if: needs.verify-release.outputs.publish == 'true'
+    needs:
+      - verify-release
+      - build-linux-release
+      - build-web-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_VERSION: ${{ needs.verify-release.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Consolidate SHA256SUMS manifest
+        working-directory: release-assets
+        run: |
+          cat ./*.sha256 | sort -k2 > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Attest consolidated SHA256SUMS manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/SHA256SUMS.txt
+      - name: Create GitHub Release
+        run: |
+          prerelease_flag=()
+          if [[ "${RELEASE_VERSION}" == *"-"* ]]; then
+            prerelease_flag+=(--prerelease)
+          fi
+          gh release create "${RELEASE_TAG}" \
+            release-assets/* \
+            --title "Ferrum ${RELEASE_TAG}" \
+            --generate-notes \
+            "${prerelease_flag[@]}"
+
