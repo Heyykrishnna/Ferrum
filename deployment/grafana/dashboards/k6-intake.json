@@ -1,0 +1,84 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "content": "Intake only. Each point is the time to receive HTTP 202 from POST /v1/submissions. Cancel time is separate. Rejected requests, including the 50 in-flight quota, are excluded from these percentiles. Sandbox execution is not included.",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "decimals": 2 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 3 },
+      "id": 2,
+      "title": "Accepted intake latency",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "max(k6_intake_duration_p50{scenario=\"intake\"}) * 1000", "legendFormat": "p50", "refId": "A" },
+        { "expr": "max(k6_intake_duration_p95{scenario=\"intake\"}) * 1000", "legendFormat": "p95", "refId": "B" },
+        { "expr": "max(k6_intake_duration_p99{scenario=\"intake\"}) * 1000", "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 3 },
+      "id": 3,
+      "title": "Accepted intake rate",
+      "type": "stat",
+      "targets": [
+        { "expr": "sum(rate(k6_intake_accepted_total{scenario=\"intake\"}[1m]))", "legendFormat": "accepted/s", "refId": "A" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 4,
+      "title": "Accepted intake p95 by language",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max by (language) (k6_intake_duration_language_p95{scenario=\"intake\"}) * 1000",
+          "legendFormat": "{{language}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 5,
+      "title": "Rejections and dropped iterations",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(k6_intake_rejected_total{scenario=\"intake\"})", "legendFormat": "rejected", "refId": "A" },
+        { "expr": "sum(k6_dropped_iterations_total{scenario=\"intake\"})", "legendFormat": "dropped", "refId": "B" }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["ferrum", "k6"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timezone": "browser",
+  "title": "k6 intake benchmark",
+  "uid": "ferrum-k6-intake"
+}

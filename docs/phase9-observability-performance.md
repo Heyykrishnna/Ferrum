@@ -131,6 +131,20 @@ python3 tests/phase9/load-and-metrics-smoke.py --count 100
 
 The harness sends sequential requests in stages of up to 25. It cancels the submissions through the API after each stage to free capacity under the tenant quota. Reported throughput and percentiles cover intake and exclude cancellation time. Worker throughput and end-to-end latency require a separate run on a qualified Linux worker.
 
+Grafana k6 records the same intake boundary continuously and remote-writes the result to Prometheus. `tests/phase9/k6/intake.js` posts the five-language mix, keeps only HTTP 202 samples in `intake_duration`, cancels each accepted submission, and counts quota or cancel failures in `intake_rejected`. The default run is 5 accepted requests per second for 5 minutes, with at most 20 in flight. The k6 web dashboard listens on `http://127.0.0.1:5665` while the process is running, and the Ferrum Grafana folder keeps the series after the run.
+
+```bash
+K6_WEB_DASHBOARD_HOST=127.0.0.1 \
+K6_WEB_DASHBOARD_PORT=5665 \
+K6_PROMETHEUS_RW_SERVER_URL=http://127.0.0.1:9092/api/v1/write \
+K6_PROMETHEUS_RW_TREND_STATS='p(50),p(95),p(99),avg,min,max' \
+K6_PROMETHEUS_RW_PUSH_INTERVAL=2s \
+FERRUM_BASE_URL=http://127.0.0.1:8081 \
+FERRUM_K6_RATE=5 \
+FERRUM_K6_DURATION=5m \
+k6 run -o experimental-prometheus-rw -o web-dashboard tests/phase9/k6/intake.js
+```
+
 Verify the Prometheus API failure-rate alert with synthetic request counters:
 
 ```bash
