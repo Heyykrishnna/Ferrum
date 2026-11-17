@@ -8,20 +8,29 @@ import { createRoot } from 'react-dom/client';
 import Landing from './Landing';
 
 const App = lazy(() => import('./App'));
+const DocsPage = lazy(() => import('./pages/Docs'));
+const TermsPage = lazy(() => import('./pages/Terms'));
+const PrivacyPage = lazy(() => import('./pages/Privacy'));
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Missing Ferrum root.');
 
-const playground = /^\/playground\/?$/.test(window.location.pathname);
-document.title = playground
-  ? 'Ferrum Playground'
-  : 'Ferrum — Sandboxed code execution';
+const path = window.location.pathname.replace(/\/+$/, '') || '/';
+const pages = {
+  '/playground': { title: 'Ferrum Playground', Page: App },
+  '/docs': { title: 'Docs — Ferrum', Page: DocsPage },
+  '/terms': { title: 'Terms and conditions — Ferrum', Page: TermsPage },
+  '/privacy': { title: 'Privacy — Ferrum', Page: PrivacyPage },
+} as const;
+
+const page = pages[path as keyof typeof pages];
+document.title = page?.title ?? 'Ferrum — Sandboxed code execution';
 
 createRoot(container).render(
   <StrictMode>
-    {playground ? (
-      <Suspense>
-        <App />
+    {page ? (
+      <Suspense fallback={<div className="min-h-dvh bg-lp-canvas" />}>
+        <page.Page />
       </Suspense>
     ) : (
       <Landing />

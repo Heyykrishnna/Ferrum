@@ -37,6 +37,14 @@ const workerMessages = {
     'Could not verify worker status. The playground will check again shortly.',
 } as const;
 
+const docsUrl =
+  'https://github.com/Heyykrishnna/Ferrum/blob/main/docs/README.md';
+
+const motion = 'duration-300 ease-[var(--ease-soft)]';
+const control = `border border-edge bg-editor transition-[border-color,background-color,color,box-shadow] ${motion} hover:border-muted/50 focus-visible:border-ink/40 focus-visible:ring-2 focus-visible:ring-ink/10 focus-visible:outline-none`;
+const buttonFocus =
+  'focus-visible:ring-ink/30 focus-visible:ring-offset-canvas';
+
 export default function App() {
   const [language, setLanguage] = useState<Language>('python');
   const [drafts, setDrafts] = useState<Partial<Record<Language, string>>>({});
@@ -149,37 +157,24 @@ export default function App() {
   }, []);
 
   return (
-    <main
+    <div
       data-theme={dark ? 'dark' : 'light'}
-      className="relative isolate min-h-dvh overflow-hidden bg-canvas px-3 py-4 text-ink sm:px-7 sm:py-9 xl:px-18 xl:py-[7vh]"
+      className="flex min-h-dvh flex-col bg-canvas text-ink lg:h-dvh"
     >
-      <img
-        src="/countryside.jpg"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute top-0 left-0 -z-10 hidden h-[74%] w-[51%] object-cover object-left sm:block"
-      />
-      <img
-        src="/countryside.jpg"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute right-0 bottom-0 -z-10 hidden h-[62%] w-[42%] object-cover object-right sm:block"
-      />
-      <div className="mx-auto flex max-w-[1250px] flex-col overflow-hidden rounded-[12px] border border-edge bg-surface shadow-[0_12px_50px_#18202024]">
-        <header className="flex min-h-13 flex-wrap items-center justify-between gap-x-5 gap-y-2 border-b border-edge bg-chrome px-4 py-2 sm:px-6">
-          <div className="flex items-center gap-3 text-[13px]">
+      <header className="sticky top-0 z-20 border-b border-edge bg-surface/90 backdrop-blur-md">
+        <div className="flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
             <a
               href="/"
-              className="font-semibold tracking-tight hover:underline"
+              className={`text-xl font-semibold tracking-tight transition-opacity ${motion} hover:opacity-70`}
             >
               Ferrum
             </a>
-            <span aria-hidden="true" className="text-muted">
-              /
-            </span>
-            <span className="text-muted">Playground</span>
+            <span aria-hidden="true" className="h-5 border-l border-edge" />
+            <h1 className="text-[13px] font-medium text-muted">Playground</h1>
           </div>
-          <div className="flex items-center gap-3.5">
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {connectionError ? (
               <button
                 type="button"
@@ -190,17 +185,17 @@ export default function App() {
                   setWorker(undefined);
                   setCheck((previous) => previous + 1);
                 }}
-                className="flex items-center gap-2 text-xs text-danger hover:underline"
+                className={`flex h-9 items-center gap-2 rounded-full border border-danger/40 px-3.5 text-xs text-danger transition-colors ${motion} hover:bg-danger/10`}
               >
-                <RotateCw size={12} /> Reconnect API
+                <RotateCw size={12} aria-hidden="true" /> Reconnect API
               </button>
             ) : (
               <span
                 aria-live="polite"
-                className="flex items-center gap-2 text-xs text-muted"
+                className="flex h-9 items-center gap-2 rounded-full border border-edge bg-surface px-3.5 text-xs text-muted"
               >
                 <span
-                  className={`size-1.5 ${workerOnline ? 'bg-accent-ink' : 'bg-warning'}`}
+                  className={`size-1.5 rounded-full transition-colors ${motion} ${workerOnline ? 'bg-ink' : 'bg-warning'}`}
                 />
                 {workerOnline
                   ? 'Worker online'
@@ -211,28 +206,27 @@ export default function App() {
                       : 'Connecting'}
               </span>
             )}
-            <span aria-hidden="true" className="h-5 border-l border-edge" />
+            <a
+              href={docsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={`hidden h-9 items-center rounded-md px-3 text-[13px] text-muted transition-colors ${motion} hover:text-ink md:flex`}
+            >
+              Docs
+            </a>
             <button
               type="button"
               aria-label={dark ? 'Use light theme' : 'Use dark theme'}
               title={dark ? 'Use light theme' : 'Use dark theme'}
               onClick={() => setDark(!dark)}
-              className="grid size-7 place-items-center rounded-[4px] text-muted hover:bg-subtle hover:text-ink"
+              className={`grid size-9 place-items-center rounded-lg border border-edge bg-surface text-muted transition-colors ${motion} hover:bg-subtle hover:text-ink`}
             >
               {dark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-          </div>
-        </header>
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-edge px-4 py-4 sm:px-6 sm:py-5">
-          <div>
-            <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.055em] sm:text-[28px]">
-              Code playground
-            </h1>
-            <p className="mt-1 text-xs text-muted sm:text-[13px]">
-              Write, run, and judge code with Ferrum.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="mx-1 hidden h-5 border-l border-edge sm:block"
+            />
             <CandyButton
               type="button"
               variant="pearl"
@@ -240,7 +234,7 @@ export default function App() {
               onClick={() => start('run')}
               title="Run with standard input"
               leftIcon={<Play aria-hidden="true" />}
-              className="border border-edge font-semibold focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface"
+              className={`border border-edge font-semibold ${motion} ${buttonFocus}`}
             >
               Run
             </CandyButton>
@@ -251,199 +245,196 @@ export default function App() {
               onClick={() => start('submit')}
               title="Judge against expected output"
               rightIcon={<ArrowUpRight aria-hidden="true" />}
-              className="font-semibold focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface"
+              className={`font-semibold ${motion} ${buttonFocus}`}
             >
               Submit
             </CandyButton>
           </div>
         </div>
-
         {(connectionError || workerMessage || inputError) && (
           <p
             role="alert"
-            className="border-b border-edge px-4 py-2 text-xs text-danger sm:px-6"
+            className="border-t border-edge px-4 py-2 text-xs text-danger sm:px-6 lg:px-8"
           >
             {connectionError ?? workerMessage ?? inputError}
           </p>
         )}
+      </header>
 
-        <div className="grid lg:min-h-[clamp(558px,calc(86vh-184px),980px)] lg:grid-cols-[minmax(0,1.68fr)_minmax(338px,1fr)]">
-          <section
-            aria-label="Source editor"
-            className="flex min-w-0 flex-col bg-editor lg:border-r lg:border-edge"
-          >
-            <div className="flex min-h-11 items-stretch justify-between border-b border-edge bg-chrome pr-2.5 sm:pr-3.5">
-              <div className="flex items-center gap-2 border-t-2 border-r border-t-accent-ink border-r-edge bg-editor px-3.5 font-mono text-xs sm:px-4">
-                <Code2
-                  size={15}
-                  aria-hidden="true"
-                  className="text-accent-ink"
-                />
-                {languages[language].file}
-              </div>
-              <label className="relative flex items-center self-center">
-                <span className="sr-only">Language</span>
-                <select
-                  value={language}
-                  onChange={(event) => {
-                    const selection = languageSchema.safeParse(
-                      event.currentTarget.value,
-                    );
-                    if (selection.success) {
-                      setLanguage(selection.data);
-                      setPosition({ line: 1, column: 1 });
-                      setInputError(undefined);
-                    }
-                  }}
-                  className="h-7 appearance-none rounded-[4px] border border-edge bg-editor pr-7 pl-2.5 text-[11px] font-medium hover:bg-subtle"
-                >
-                  {languageChoices.map((choice) => (
-                    <option
-                      key={choice}
-                      value={choice}
-                      disabled={
-                        profiles &&
-                        !profiles.some((profile) => profile.language === choice)
-                      }
-                    >
-                      {languages[choice].label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={13}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-2 text-muted"
-                />
-              </label>
+      <main className="grid flex-1 gap-3 p-3 sm:gap-4 sm:p-4 lg:min-h-0 lg:grid-cols-[minmax(0,1.7fr)_minmax(360px,1fr)] lg:p-5">
+        <section
+          aria-label="Source editor"
+          className="flex min-h-120 min-w-0 flex-col overflow-hidden rounded-xl border border-edge bg-editor lg:min-h-0"
+        >
+          <div className="flex min-h-12 items-center justify-between gap-3 border-b border-edge bg-chrome px-3 sm:px-4">
+            <div className="flex items-center gap-2 font-mono text-xs">
+              <Code2 size={15} aria-hidden="true" className="text-muted" />
+              {languages[language].file}
             </div>
-            <div className="relative min-h-100 flex-1 lg:min-h-0">
-              <Suspense
-                fallback={
-                  <div role="status" className="p-5 text-xs text-muted">
-                    Loading editor…
-                  </div>
-                }
-              >
-                <CodeEditor
-                  key={language}
-                  source={source}
-                  language={language}
-                  dark={dark}
-                  onSource={(value) =>
-                    setDrafts((current) => ({ ...current, [language]: value }))
+            <label className="relative flex items-center">
+              <span className="sr-only">Language</span>
+              <select
+                value={language}
+                onChange={(event) => {
+                  const selection = languageSchema.safeParse(
+                    event.currentTarget.value,
+                  );
+                  if (selection.success) {
+                    setLanguage(selection.data);
+                    setPosition({ line: 1, column: 1 });
+                    setInputError(undefined);
                   }
-                  onPosition={(line, column) => setPosition({ line, column })}
-                  onRun={() => start('run')}
-                />
-              </Suspense>
+                }}
+                className={`h-8 appearance-none rounded-lg pr-8 pl-3 text-xs font-medium ${control}`}
+              >
+                {languageChoices.map((choice) => (
+                  <option
+                    key={choice}
+                    value={choice}
+                    disabled={
+                      profiles &&
+                      !profiles.some((profile) => profile.language === choice)
+                    }
+                  >
+                    {languages[choice].label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={13}
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2.5 text-muted"
+              />
+            </label>
+          </div>
+          <div className="relative min-h-100 flex-1 lg:min-h-0">
+            <Suspense
+              fallback={
+                <div role="status" className="p-5 text-xs text-muted">
+                  Loading editor…
+                </div>
+              }
+            >
+              <CodeEditor
+                key={language}
+                source={source}
+                language={language}
+                dark={dark}
+                onSource={(value) =>
+                  setDrafts((current) => ({ ...current, [language]: value }))
+                }
+                onPosition={(line, column) => setPosition({ line, column })}
+                onRun={() => start('run')}
+              />
+            </Suspense>
+          </div>
+          <footer className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-edge bg-chrome px-3 py-1.5 font-mono text-[10px] text-muted sm:px-4">
+            <span>
+              Ln {position.line}, Col {position.column}
+              <span aria-hidden="true" className="mx-2">
+                ·
+              </span>
+              UTF-8
+            </span>
+            <span className="flex items-center gap-2">
+              <kbd className="rounded-md border border-edge bg-surface px-1.5 py-0.5 text-[9px]">
+                Ctrl / ⌘ + Enter
+              </kbd>
+              Run code
+            </span>
+          </footer>
+        </section>
+
+        <aside
+          aria-label="Execution workspace"
+          className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:min-h-0 lg:overflow-y-auto"
+        >
+          <section
+            aria-labelledby="input-heading"
+            className="flex flex-col gap-3 rounded-xl border border-edge bg-surface p-4"
+          >
+            <h2
+              id="input-heading"
+              className="flex items-center gap-2 text-[13px] font-semibold"
+            >
+              <Brackets size={15} aria-hidden="true" className="text-muted" />
+              Test input
+            </h2>
+            <label className="grid gap-1.5">
+              <span className="flex items-center justify-between text-xs font-medium">
+                Standard input
+                <span className="font-mono text-[10px] font-normal text-muted">
+                  stdin
+                </span>
+              </span>
+              <textarea
+                rows={2}
+                value={input}
+                spellCheck={false}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Input for your program"
+                className={`min-h-16 w-full resize-y rounded-lg px-3 py-2 font-mono text-xs leading-5 placeholder:text-muted ${control}`}
+              />
+            </label>
+            <div className="grid gap-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <label
+                  htmlFor="expected-output"
+                  className="text-xs font-medium"
+                >
+                  Expected output
+                </label>
+                <label className="relative flex items-center">
+                  <span className="sr-only">Output comparison</span>
+                  <select
+                    value={comparison}
+                    onChange={(event) => {
+                      const selection = comparisonSchema.safeParse(
+                        event.currentTarget.value,
+                      );
+                      if (selection.success) setComparison(selection.data);
+                    }}
+                    className={`h-7 appearance-none rounded-md pr-7 pl-2.5 text-[11px] text-muted hover:text-ink ${control}`}
+                  >
+                    <option value="exact">Exact match</option>
+                    <option value="whitespace">
+                      Ignore trailing whitespace
+                    </option>
+                    <option value="tokens">Compare tokens</option>
+                  </select>
+                  <ChevronDown
+                    size={11}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-2 text-muted"
+                  />
+                </label>
+              </div>
+              <textarea
+                id="expected-output"
+                rows={2}
+                value={expected}
+                spellCheck={false}
+                onChange={(event) => setExpected(event.target.value)}
+                placeholder="Output to compare on submit"
+                className={`min-h-16 w-full resize-y rounded-lg px-3 py-2 font-mono text-xs leading-5 placeholder:text-muted ${control}`}
+              />
             </div>
           </section>
-
-          <aside
-            aria-label="Execution workspace"
-            className="flex min-w-0 flex-col gap-4 border-t border-edge bg-surface px-4 py-4 sm:px-5 lg:border-t-0"
-          >
-            <section
-              aria-labelledby="input-heading"
-              className="flex flex-col gap-2.5"
-            >
-              <h2
-                id="input-heading"
-                className="flex items-center gap-2 text-[13px] font-semibold"
-              >
-                <Brackets size={15} aria-hidden="true" className="text-muted" />
-                Test input
-              </h2>
-              <label className="grid gap-1.5">
-                <span className="flex items-center justify-between text-xs font-medium">
-                  Standard input
-                  <span className="font-mono text-[10px] font-normal text-muted">
-                    stdin
-                  </span>
-                </span>
-                <textarea
-                  rows={2}
-                  value={input}
-                  spellCheck={false}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="Input for your program"
-                  className="min-h-14 w-full resize-y rounded-[4px] border border-edge bg-editor px-2.5 py-2 font-mono text-xs leading-5 placeholder:text-muted"
-                />
-              </label>
-              <div className="grid gap-1.5">
-                <div className="flex flex-wrap items-center justify-between gap-1">
-                  <label
-                    htmlFor="expected-output"
-                    className="text-xs font-medium"
-                  >
-                    Expected output
-                  </label>
-                  <label className="relative">
-                    <span className="sr-only">Output comparison</span>
-                    <select
-                      value={comparison}
-                      onChange={(event) => {
-                        const selection = comparisonSchema.safeParse(
-                          event.currentTarget.value,
-                        );
-                        if (selection.success) setComparison(selection.data);
-                      }}
-                      className="appearance-none rounded-[3px] border border-edge bg-editor py-0.5 pr-6 pl-2 text-[10px] text-muted hover:text-ink"
-                    >
-                      <option value="exact">Exact match</option>
-                      <option value="whitespace">
-                        Ignore trailing whitespace
-                      </option>
-                      <option value="tokens">Compare tokens</option>
-                    </select>
-                    <ChevronDown
-                      size={11}
-                      aria-hidden="true"
-                      className="pointer-events-none absolute top-1.5 right-1.5 text-muted"
-                    />
-                  </label>
-                </div>
-                <textarea
-                  id="expected-output"
-                  rows={2}
-                  value={expected}
-                  spellCheck={false}
-                  onChange={(event) => setExpected(event.target.value)}
-                  placeholder="Output to compare on submit"
-                  className="min-h-14 w-full resize-y rounded-[4px] border border-edge bg-editor px-2.5 py-2 font-mono text-xs leading-5 placeholder:text-muted"
-                />
-              </div>
-            </section>
-            <div className="border-t border-edge" />
-            <ExecutionPanel
-              key={execution.submission?.id ?? 'draft'}
-              mode={execution.mode}
-              submission={execution.submission}
-              status={execution.status}
-              error={execution.error}
-              pending={execution.pending}
-              cancelling={execution.cancelling}
-              onCancel={() => void execution.cancel()}
-              onRefresh={execution.refresh}
-              workerUnavailable={workerMessage !== undefined}
-              retry={workerOnline ? execution.retry : undefined}
-            />
-          </aside>
-        </div>
-        <footer className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-edge bg-chrome px-4 py-1.5 font-mono text-[10px] text-muted sm:px-6">
-          <span>
-            Ln {position.line}, Col {position.column}{' '}
-            <span className="mx-2">·</span> UTF-8
-          </span>
-          <span className="flex items-center gap-2">
-            <kbd className="rounded-[3px] border border-edge px-1.5 py-0.5 text-[9px]">
-              Ctrl / ⌘ + Enter
-            </kbd>{' '}
-            Run code
-          </span>
-        </footer>
-      </div>
-    </main>
+          <ExecutionPanel
+            key={execution.submission?.id ?? 'draft'}
+            mode={execution.mode}
+            submission={execution.submission}
+            status={execution.status}
+            error={execution.error}
+            pending={execution.pending}
+            cancelling={execution.cancelling}
+            onCancel={() => void execution.cancel()}
+            onRefresh={execution.refresh}
+            workerUnavailable={workerMessage !== undefined}
+            retry={workerOnline ? execution.retry : undefined}
+          />
+        </aside>
+      </main>
+    </div>
   );
 }

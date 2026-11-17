@@ -6,7 +6,7 @@ import { CandyButton } from '@/components/ui/candy-button';
 import type { Submission } from '../shared/contracts';
 
 const secondaryAction =
-  'border border-edge focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface';
+  'border border-edge focus-visible:ring-ink/30 focus-visible:ring-offset-surface';
 
 type OutputTab = 'Output' | 'Errors' | 'Compiler';
 const tabs: OutputTab[] = ['Output', 'Errors', 'Compiler'];
@@ -78,7 +78,7 @@ export function ExecutionPanel({
   return (
     <section
       aria-label="Execution results"
-      className="flex min-h-0 flex-1 flex-col gap-3"
+      className="flex min-h-80 flex-1 flex-col gap-3 rounded-xl border border-edge bg-surface p-4"
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[13px] font-semibold">
@@ -87,20 +87,20 @@ export function ExecutionPanel({
         </h2>
         <div
           aria-live="polite"
-          className="flex items-center gap-2 text-xs text-muted"
+          className="flex h-7 items-center gap-2 rounded-full border border-edge px-3 text-[11px] text-muted"
         >
           <span
-            className={`size-1.5 ${busy ? 'bg-warning' : result ? 'bg-accent-ink' : 'bg-muted'}`}
+            className={`size-1.5 rounded-full transition-colors duration-300 ${busy ? 'bg-warning' : result ? 'bg-ink' : 'bg-muted'}`}
           />
           {label}
         </div>
       </div>
-      <div className="flex min-h-43 flex-1 flex-col overflow-hidden rounded-[5px] border border-console-edge bg-console text-console-text">
-        <div className="flex min-h-9 items-stretch justify-between border-b border-console-edge px-2">
+      <div className="flex min-h-43 flex-1 flex-col overflow-hidden rounded-lg border border-console-edge bg-console text-console-text">
+        <div className="flex min-h-11 items-center justify-between border-b border-console-edge px-2">
           <div
             role="group"
             aria-label="Console view"
-            className="flex items-stretch"
+            className="flex items-center gap-1"
           >
             {tabs.map((name) => (
               <button
@@ -111,7 +111,7 @@ export function ExecutionPanel({
                   setCopied(false);
                   setTab(name);
                 }}
-                className="border-b-2 border-transparent px-2.5 text-[11px] text-console-muted hover:text-console-text aria-pressed:border-console-accent aria-pressed:text-console-text"
+                className="h-7 rounded-md px-3 text-[11px] text-console-muted transition-colors duration-300 ease-[var(--ease-soft)] hover:text-console-text aria-pressed:bg-console-edge aria-pressed:text-console-text"
               >
                 {name}
               </button>
@@ -123,12 +123,12 @@ export function ExecutionPanel({
             aria-label={copied ? 'Copied' : 'Copy console output'}
             disabled={!text}
             onClick={() => void copyOutput()}
-            className="mx-1 self-center p-1.5 text-console-muted hover:text-console-text disabled:opacity-40"
+            className="mx-1 rounded-md p-1.5 text-console-muted transition-colors duration-300 ease-[var(--ease-soft)] hover:bg-console-edge hover:text-console-text disabled:opacity-40 disabled:hover:bg-transparent"
           >
             {copied ? <Check size={14} /> : <Clipboard size={14} />}
           </button>
         </div>
-        <div className="max-h-60 min-h-24 flex-1 overflow-auto p-3.5">
+        <div className="max-h-80 min-h-24 flex-1 overflow-auto p-4 lg:max-h-none">
           {text ? (
             <pre className="font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap">
               {text}
@@ -219,7 +219,7 @@ export function ExecutionPanel({
           size="sm"
           onClick={retry}
           leftIcon={<RotateCw aria-hidden="true" />}
-          className="w-fit focus-visible:ring-accent-ink/40 focus-visible:ring-offset-surface"
+          className="w-fit focus-visible:ring-ink/30 focus-visible:ring-offset-surface"
         >
           Retry request
         </CandyButton>

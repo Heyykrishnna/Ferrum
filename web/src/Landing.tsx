@@ -1,6 +1,4 @@
 import {
-  ArrowRight,
-  ArrowUpRight,
   BookOpen,
   Check,
   CircleCheck,
@@ -11,11 +9,9 @@ import {
   GitBranch,
   Layers,
   LifeBuoy,
-  Menu,
   MemoryStick,
   ShieldOff,
   Trash2,
-  X,
 } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -31,23 +27,15 @@ import {
   siTokio,
 } from 'simple-icons';
 
-import { CandyButton } from '@/components/ui/candy-button';
-import type {
-  CandyButtonSize,
-  CandyButtonVariant,
-} from '@/components/ui/candy-button';
-import { cn } from '@/lib/utils';
-
-const repository = 'https://github.com/Heyykrishnna/Ferrum';
-const doc = (path: string) => `${repository}/blob/main/${path}`;
-
-const navigation = [
-  { label: 'Products', href: '#products' },
-  { label: 'Languages', href: '#languages' },
-  { label: 'Security', href: '#security' },
-  { label: 'Deploy', href: '#deploy' },
-  { label: 'Support', href: '#support' },
-];
+import {
+  ActionButton,
+  doc,
+  hoverMotion,
+  repository,
+  SiteFooter,
+  SiteHeader,
+  TextLink,
+} from './chrome';
 
 const requestSamples = {
   Submit: `curl -i http://127.0.0.1:8080/v1/submissions \\
@@ -119,7 +107,7 @@ const products = [
     ],
     action: {
       label: 'Read the API guide',
-      href: doc('docs/submission-api.md'),
+      href: '/docs#submissions',
     },
   },
   {
@@ -152,7 +140,7 @@ const products = [
     ],
     action: {
       label: 'Read the judging guide',
-      href: doc('docs/phase6-judging.md'),
+      href: '/docs#judging',
     },
   },
 ] as const;
@@ -315,7 +303,7 @@ const support = [
     title: 'Documentation',
     text: 'Architecture, API reference, language profiles and the threat model.',
     meta: ['OpenAPI spec', 'Phase guides'],
-    action: { label: 'Browse docs', href: doc('docs/README.md') },
+    action: { label: 'Browse docs', href: '/docs' },
   },
   {
     icon: LifeBuoy,
@@ -335,70 +323,6 @@ const support = [
     action: { label: 'Open an issue', href: `${repository}/issues` },
   },
 ];
-
-function isExternal(href: string) {
-  return href.startsWith('http');
-}
-
-function TextLink({
-  href,
-  className,
-  children,
-}: {
-  href: string;
-  className: string;
-  children: ReactNode;
-}) {
-  return (
-    <a
-      href={href}
-      className={className}
-      {...(isExternal(href) ? { target: '_blank', rel: 'noreferrer' } : {})}
-    >
-      {children}
-    </a>
-  );
-}
-
-function ActionButton({
-  href,
-  children,
-  variant = 'obsidian',
-  size = 'default',
-  className,
-}: {
-  href: string;
-  children: ReactNode;
-  variant?: CandyButtonVariant;
-  size?: CandyButtonSize;
-  className?: string;
-}) {
-  const external = isExternal(href);
-  const Icon = external ? ArrowUpRight : ArrowRight;
-  return (
-    <CandyButton
-      href={href}
-      variant={variant}
-      size={size}
-      // CandyButton marks anchors as buttons; these navigate, so keep link semantics.
-      role={undefined}
-      rightIcon={
-        <Icon
-          aria-hidden="true"
-          className={`${hoverMotion} transition-transform group-hover:translate-x-0.5`}
-        />
-      }
-      {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
-      className={cn(
-        'group duration-300 ease-[var(--ease-soft)] focus-visible:ring-lp-ink/30 focus-visible:ring-offset-lp-canvas',
-        variant === 'pearl' && 'border border-lp-line',
-        className,
-      )}
-    >
-      {children}
-    </CandyButton>
-  );
-}
 
 function revealDelay(index: number): CSSProperties {
   return { '--reveal-delay': `${Math.min(index, 7) * 70}ms` } as CSSProperties;
@@ -421,8 +345,6 @@ function useReveal() {
     return () => observer.disconnect();
   }, []);
 }
-
-const hoverMotion = 'duration-300 ease-[var(--ease-soft)]';
 
 const cardMotion = `transition-[box-shadow,border-color] ${hoverMotion} hover:border-[#c9c9c6] hover:shadow-[0_12px_32px_-20px_#00000040]`;
 
@@ -551,79 +473,6 @@ function CodePanel() {
   );
 }
 
-function Navigation() {
-  const [open, setOpen] = useState(false);
-  return (
-    <header className="sticky top-0 z-20 border-b border-lp-line bg-lp-card/90 backdrop-blur-md">
-      <nav
-        aria-label="Primary"
-        className="mx-auto flex min-h-18 max-w-384 items-center justify-between gap-3 px-4 sm:px-8 lg:px-10"
-      >
-        <a
-          href="/"
-          className="text-xl font-semibold tracking-tight text-lp-ink"
-        >
-          Ferrum
-        </a>
-        <div className="hidden items-center gap-7 md:flex">
-          {navigation.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className={`relative py-1 text-[13px] text-lp-body transition-colors ${hoverMotion} after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-lp-ink after:transition-transform after:duration-300 after:ease-[var(--ease-soft)] hover:text-lp-ink hover:after:scale-x-100`}
-            >
-              {item.label}
-            </a>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <TextLink
-            href={doc('docs/README.md')}
-            className={`hidden h-9 items-center rounded-md px-4 text-[13px] text-lp-body transition-colors ${hoverMotion} hover:text-lp-ink sm:flex`}
-          >
-            Docs
-          </TextLink>
-          <ActionButton href="/playground">Playground</ActionButton>
-          <CandyButton
-            type="button"
-            variant="pearl"
-            size="icon"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            aria-expanded={open}
-            aria-controls="mobile-navigation"
-            onClick={() => setOpen(!open)}
-            className="border border-lp-line focus-visible:ring-lp-ink/30 focus-visible:ring-offset-lp-canvas md:hidden"
-          >
-            {open ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
-          </CandyButton>
-        </div>
-      </nav>
-      <div
-        id="mobile-navigation"
-        inert={!open}
-        className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[var(--ease-soft)] md:hidden ${
-          open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div className="border-t border-lp-line px-4 py-3 sm:px-8">
-            {navigation.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={`block py-2 text-[14px] text-lp-body transition-colors ${hoverMotion} hover:text-lp-ink`}
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
-
 function Hero() {
   return (
     <section aria-labelledby="hero-heading" className="pt-6 sm:pt-9 lg:pt-12">
@@ -649,7 +498,7 @@ function Hero() {
                   Open playground
                 </ActionButton>
                 <ActionButton
-                  href={doc('docs/submission-api.md')}
+                  href="/docs#submissions"
                   variant="pearl"
                   size="lg"
                   className="text-sm"
@@ -815,45 +664,76 @@ function PlaygroundVisual() {
 
 function JudgeVisual() {
   const cases = [
-    ['Case 1', 'accepted', '10 / 10'],
-    ['Case 2', 'accepted', '10 / 10'],
-    ['Case 3', 'wrong_answer', '0 / 20'],
-    ['Case 4', 'time_limit_exceeded', '0 / 10'],
-  ];
+    ['1', 'Accepted', '10', '10', true],
+    ['2', 'Accepted', '10', '10', true],
+    ['3', 'Wrong answer', '0', '20', false],
+    ['4', 'Time limit exceeded', '0', '10', false],
+  ] as const;
   return (
-    <div className="min-w-0 rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-8 xl:p-10">
-      <div className="flex items-center justify-between text-[12px]">
-        <span className="font-medium text-lp-ink">Test cases</span>
-        <span className="font-mono text-lp-body">score 20 / 50</span>
+    <div className="flex min-w-0 flex-col rounded-xl border border-lp-line bg-lp-panel p-5 sm:p-8 xl:p-10">
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm font-medium text-lp-ink">Test cases</span>
+        <span className="font-mono text-xs text-lp-body tabular-nums">
+          20 / 50
+        </span>
       </div>
-      <ul className="mt-4 grid gap-2">
-        {cases.map(([name, verdict, score]) => (
-          <li
-            key={name}
-            className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-lp-line bg-lp-card px-3 py-3 text-xs sm:px-4"
-          >
-            <span className="text-lp-ink">{name}</span>
-            <span className="flex min-w-0 items-baseline gap-2 sm:gap-4">
-              <span
-                className={`rounded-md px-2 py-0.5 font-mono text-xs wrap-anywhere ${
-                  verdict === 'accepted'
-                    ? 'bg-lp-tint text-lp-accent'
-                    : 'bg-lp-panel text-lp-body'
-                }`}
+      <div className="mt-4 overflow-hidden rounded-lg border border-lp-line bg-lp-card">
+        <table className="w-full border-collapse text-left text-xs">
+          <caption className="sr-only">
+            Four judged cases. The first failing case sets the verdict. Score 20
+            of 50.
+          </caption>
+          <thead>
+            <tr className="bg-lp-panel text-[10px] tracking-wide text-lp-fade uppercase">
+              <th scope="col" className="w-14 px-3 py-2.5 font-medium sm:px-4">
+                Case
+              </th>
+              <th scope="col" className="px-3 py-2.5 font-medium">
+                Verdict
+              </th>
+              <th
+                scope="col"
+                className="w-20 px-3 py-2.5 text-right font-medium sm:px-4"
               >
-                {verdict}
-              </span>
-              <span className="shrink-0 text-right font-mono text-lp-fade sm:w-12">
-                {score}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-4 flex items-center justify-between rounded-lg bg-lp-night px-4 py-3 font-mono text-[11.5px]">
-        <span className="text-lp-night-fade">verdict</span>
-        <span className="text-white">wrong_answer</span>
-      </p>
+                Score
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {cases.map(([index, verdict, score, max, passed]) => (
+              <tr key={index} className="border-t border-lp-line">
+                <th
+                  scope="row"
+                  className="px-3 py-3 font-mono text-[12px] font-medium text-lp-ink tabular-nums sm:px-4"
+                >
+                  {index}
+                </th>
+                <td className="px-3 py-3">
+                  <span
+                    className={`inline-flex rounded-md px-2 py-0.5 font-medium whitespace-nowrap ${
+                      passed
+                        ? 'bg-lp-tint text-lp-accent'
+                        : 'border border-lp-line bg-lp-panel text-lp-ink'
+                    }`}
+                  >
+                    {verdict}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-right font-mono text-lp-body tabular-nums sm:px-4">
+                  {score}
+                  <span className="text-lp-fade"> / {max}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-4 rounded-lg bg-lp-night px-4 py-3 text-xs">
+        <span className="text-lp-night-fade">Verdict</span>
+        <span className="font-medium whitespace-nowrap text-lp-night-text">
+          Wrong answer
+        </span>
+      </div>
     </div>
   );
 }
@@ -1181,85 +1061,11 @@ function CallToAction() {
   );
 }
 
-const footerColumns = [
-  {
-    title: 'Product',
-    links: [
-      ['Execution API', '#product-api'],
-      ['Playground', '/playground'],
-      ['Judge', '#product-judge'],
-      ['Languages', '#languages'],
-    ],
-  },
-  {
-    title: 'Documentation',
-    links: [
-      ['Architecture', doc('docs/architecture.md')],
-      ['Submission API', doc('docs/submission-api.md')],
-      ['OpenAPI spec', doc('docs/openapi.yaml')],
-      ['Threat model', doc('docs/threat-model.md')],
-    ],
-  },
-  {
-    title: 'Operations',
-    links: [
-      ['Deployment', doc('deployment/README.md')],
-      ['Observability', doc('docs/phase9-observability-performance.md')],
-      ['Runbooks', `${repository}/tree/main/docs/runbooks`],
-      ['Capacity report', doc('docs/capacity-report.md')],
-    ],
-  },
-] as const;
-
-function Footer() {
-  return (
-    <footer className="mx-auto mt-20 max-w-384 px-4 pb-10 sm:mt-26 sm:px-8 lg:mt-32 lg:px-10">
-      <div className="grid gap-10 border-t border-lp-line pt-12 md:grid-cols-[1.5fr_repeat(3,1fr)]">
-        <div>
-          <a
-            href="/"
-            className="flex items-center gap-2.5 text-[15px] font-semibold text-lp-ink"
-          >
-            Ferrum
-          </a>
-          <p className="mt-4 max-w-xs text-[13px] leading-6 text-lp-body">
-            A Rust code execution and judging engine. Sandboxed, durable and
-            observable by design.
-          </p>
-        </div>
-        {footerColumns.map((column) => (
-          <div key={column.title}>
-            <h2 className="text-[12px] font-medium text-lp-ink">
-              {column.title}
-            </h2>
-            <ul className="mt-4 grid gap-2.5">
-              {column.links.map(([label, href]) => (
-                <li key={label}>
-                  <TextLink
-                    href={href}
-                    className={`text-[13px] text-lp-body transition-colors ${hoverMotion} hover:text-lp-ink`}
-                  >
-                    {label}
-                  </TextLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-lp-line pt-6 text-[12px] text-lp-fade">
-        <span>Ferrum Execution Engine</span>
-        <span>Rust · Axum · PostgreSQL · Apalis · Isolate</span>
-      </div>
-    </footer>
-  );
-}
-
 export default function Landing() {
   useReveal();
   return (
     <div className="min-h-dvh bg-lp-canvas font-sans text-lp-ink antialiased">
-      <Navigation />
+      <SiteHeader />
       <main className="mx-auto max-w-384 px-4 sm:px-8 lg:px-10">
         <Hero />
         <Stack />
@@ -1271,7 +1077,7 @@ export default function Landing() {
         <Support />
         <CallToAction />
       </main>
-      <Footer />
+      <SiteFooter />
     </div>
   );
 }

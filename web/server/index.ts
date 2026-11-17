@@ -19,7 +19,11 @@ createServer((request, response) => {
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   );
   void gateway(request, response, () => {
-    if (/^\/playground\/?(\?.*)?$/.test(request.url ?? '')) request.url = '/';
+    if (
+      /^\/(playground|docs|terms|privacy)\/?(\?.*)?$/.test(request.url ?? '')
+    ) {
+      request.url = '/';
+    }
     staticFiles(request, response, () => {
       response.writeHead(404);
       response.end('Not found');
