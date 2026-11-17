@@ -1,0 +1,81 @@
+name: Performance Regression
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/api/**"
+      - "crates/application/**"
+      - "crates/config/**"
+      - "crates/domain/**"
+      - "crates/infrastructure/**"
+      - "crates/runtime/**"
+      - "migrations/**"
+      - "scripts/perf/**"
+      - ".github/workflows/performance.yml"
+  schedule:
+    - cron: "45 5 * * *"
+  workflow_dispatch:
+    inputs:
+      rate:
+        description: Intake arrival rate in requests per second (1-50)
+        type: string
+        default: "10"
+      duration:
+        description: Benchmark duration (e.g. 15s, 1m)
+        type: string
+        default: "15s"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-regression-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  intake-regression:
+    name: Intake Latency Regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: ferrum
+          POSTGRES_DB: ferrum_perf
+          POSTGRES_PASSWORD: ferrum_perf_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -h 127.0.0.1 -U ferrum -d ferrum_perf"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      CARGO_TERM_COLOR: always
+      FERRUM_DATABASE_URL: postgres://ferrum:ferrum_perf_password@127.0.0.1:5432/ferrum_perf
+      FERRUM_PERF_RATE: ${{ inputs.rate || '10' }}
+      FERRUM_PERF_DURATION: ${{ inputs.duration || '15s' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+      - uses: grafana/setup-k6-action@v1
+      - name: Build release ferrum-api binary
+        run: cargo build --release --bin ferrum-api --locked
+      - name: Run k6 intake performance regression suite
+        run: python3 -I scripts/perf/run-perf-regression.py --report-dir output/perf
+      - name: Upload performance benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-regression-${{ github.run_id }}
+          path: output/perf
+          retention-days: 30
+

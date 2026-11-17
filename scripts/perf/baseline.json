@@ -1,0 +1,16 @@
+{
+  "workload": "ferrum-intake-regression",
+  "default_rate_rps": 10,
+  "default_duration": "15s",
+  "budgets": {
+    "intake_p50_ms": 25.0,
+    "intake_p95_ms": 75.0,
+    "intake_p99_ms": 150.0,
+    "intake_avg_ms": 35.0,
+    "cancel_p95_ms": 75.0,
+    "min_check_rate": 0.99,
+    "max_dropped_iterations": 0,
+    "max_intake_rejected": 0
+  }
+}
+
