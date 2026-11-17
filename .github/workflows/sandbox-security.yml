@@ -1,0 +1,93 @@
+name: Linux Sandbox Security
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      run_isolate_host:
+        description: Run real Isolate 2.7 qualification suite on dedicated self-hosted Linux worker
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox-security-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  linux-sandbox-container:
+    name: Linux Sandbox & Toolchains
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build Linux sandbox verification container
+        run: docker build --file deployment/phase3.Dockerfile --target sandbox-checks --tag ferrum-sandbox-checks .
+      - name: Run fail-closed Linux sandbox checks in locked-down container
+        run: |
+          docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            ferrum-sandbox-checks
+      - name: Build Linux language toolchains container
+        run: docker build --file deployment/phase3.Dockerfile --target language-toolchains --tag ferrum-language-toolchains .
+      - name: Run trusted language toolchain matrix in locked-down container
+        run: |
+          docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            ferrum-language-toolchains
+
+  dedicated-isolate-host:
+    name: Dedicated Isolate 2.7 Host Qualification
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.run_isolate_host == true) ||
+      (github.event_name == 'schedule' && vars.FERRUM_ISOLATE_RUNNER_ENABLED == 'true') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-isolate-security'))
+    runs-on:
+      - self-hosted
+      - linux
+      - ferrum-isolate
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify dedicated Linux Isolate 2.7 host baseline
+        run: |
+          mkdir -p output/sandbox-qualification
+          bash scripts/ci/verify-isolate-host.sh | tee output/sandbox-qualification/preflight.log
+      - name: Run Isolate cleanup quarantine and adversarial sandbox suite
+        run: |
+          set -o pipefail
+          {
+            git rev-parse HEAD
+            rustc -Vv
+            cargo test --locked -p ferrum-sandbox --lib retains_and_reconciles_a_failed_cleanup -- --ignored --nocapture
+            cargo test --locked -p ferrum-sandbox --test linux_host verifies_the_real_isolate_adapter -- --ignored --nocapture
+            cargo test --locked -p ferrum-sandbox --test language_host phase5_language_matrix -- --ignored --nocapture
+          } 2>&1 | tee output/sandbox-qualification/isolate-suite.log
+      - name: Upload Isolate qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: isolate-host-qualification-${{ github.run_id }}
+          path: output/sandbox-qualification
+          retention-days: 30
+
