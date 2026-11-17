@@ -1,0 +1,55 @@
+name: PostgreSQL Integration & API Smoke
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pg-integration-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  integration:
+    name: PostgreSQL Integration & API Smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: ferrum
+          POSTGRES_DB: ferrum_ci
+          POSTGRES_PASSWORD: ferrum_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -h 127.0.0.1 -U ferrum -d ferrum_ci"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      CARGO_TERM_COLOR: always
+      DATABASE_URL: postgres://ferrum:ferrum_ci_password@127.0.0.1:5432/ferrum_ci
+      FERRUM_DATABASE_URL: postgres://ferrum:ferrum_ci_password@127.0.0.1:5432/ferrum_ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+      - name: Build ferrum-api and ferrum-worker binaries
+        run: cargo build --bins --locked
+      - name: Run PostgreSQL repository and Apalis integration tests
+        run: cargo test --locked -p ferrum-infrastructure --test postgres_integration -- --ignored --test-threads=1 --nocapture
+      - name: Run worker pipeline, judging, and recovery PostgreSQL tests
+        run: cargo test --locked -p ferrum-worker -- --ignored --test-threads=1 --nocapture
+      - name: Run live API and worker CLI smoke test suite
+        run: python3 -I scripts/ci/api-postgres-smoke.py
