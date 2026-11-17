@@ -102,11 +102,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: actionlint
       - name: Lint GitHub workflows
-        run: actionlint
+        run: |
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/repo,readonly" \
+            --workdir /repo \
+            rhysd/actionlint:latest
       - name: Lint shell scripts
         run: shellcheck scripts/ci/*.sh deployment/*.sh
 
