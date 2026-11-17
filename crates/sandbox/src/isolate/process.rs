@@ -15,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 use crate::OutputStream;
 
 const POLL: Duration = Duration::from_millis(5);
+const DRAIN_GRACE: Duration = Duration::from_millis(200);
 const TERM_GRACE: Duration = Duration::from_secs(1);
 const REAP_GRACE: Duration = Duration::from_secs(1);
 
@@ -86,6 +87,7 @@ fn poll_output(
     let mut status = None;
     let mut kill_at = end;
     let mut reap_at = None;
+    let mut drain_until = None;
     loop {
         if status.is_none() {
             status = child.try_wait().map_err(|_| ProcessError::Io)?;
@@ -127,8 +129,13 @@ fn poll_output(
                     stop,
                 });
             }
-            if !stdout.progress && !stderr.progress {
-                return Err(ProcessError::Io);
+            if stdout.progress || stderr.progress {
+                drain_until = Some(now + DRAIN_GRACE);
+            } else {
+                let limit = *drain_until.get_or_insert(now + DRAIN_GRACE);
+                if now >= limit {
+                    return Err(ProcessError::Io);
+                }
             }
         } else if let Some(reap_at) = reap_at {
             if now >= reap_at {
@@ -211,7 +218,10 @@ impl<R: Read + AsFd> Stream<R> {
         let remaining = self.limit - self.bytes.len();
         let read_limit = (remaining + 1).min(chunk.len());
         match self.reader.read(&mut chunk[..read_limit]) {
-            Ok(0) => self.eof = true,
+            Ok(0) => {
+                self.eof = true;
+                self.progress = true;
+            }
             Ok(count) => {
                 self.bytes.extend_from_slice(&chunk[..count.min(remaining)]);
                 self.exceeded = count > remaining;

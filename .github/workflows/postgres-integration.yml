@@ -38,7 +38,7 @@ jobs:
           --health-retries=15
     env:
       CARGO_TERM_COLOR: always
-      DATABASE_URL: postgres://ferrum:ferrum_ci_password@127.0.0.1:5432/ferrum_ci
+      SQLX_OFFLINE: "true"
       FERRUM_DATABASE_URL: postgres://ferrum:ferrum_ci_password@127.0.0.1:5432/ferrum_ci
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -50,6 +50,8 @@ jobs:
       - name: Run PostgreSQL repository and Apalis integration tests
         run: cargo test --locked -p ferrum-infrastructure --test postgres_integration -- --ignored --test-threads=1 --nocapture
       - name: Run worker pipeline, judging, and recovery PostgreSQL tests
+        env:
+          DATABASE_URL: postgres://ferrum:ferrum_ci_password@127.0.0.1:5432/ferrum_ci
         run: cargo test --locked -p ferrum-worker -- --ignored --test-threads=1 --nocapture
       - name: Run live API and worker CLI smoke test suite
         run: python3 -I scripts/ci/api-postgres-smoke.py

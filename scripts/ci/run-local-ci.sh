@@ -46,10 +46,10 @@ fi
 
 if [[ -n "${FERRUM_DATABASE_URL:-}" ]]; then
   echo "==> PostgreSQL integration and API smoke"
-  export DATABASE_URL="${DATABASE_URL:-${FERRUM_DATABASE_URL}}"
+  export SQLX_OFFLINE=true
   cargo build --bins --locked
   cargo test --locked -p ferrum-infrastructure --test postgres_integration -- --ignored --test-threads=1
-  cargo test --locked -p ferrum-worker -- --ignored --test-threads=1
+  DATABASE_URL="${DATABASE_URL:-${FERRUM_DATABASE_URL}}" cargo test --locked -p ferrum-worker -- --ignored --test-threads=1
   python3 -I scripts/ci/api-postgres-smoke.py
 else
   echo "SKIP PostgreSQL integration and API smoke (set FERRUM_DATABASE_URL to enable)"
