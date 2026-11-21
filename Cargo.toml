@@ -20,8 +20,8 @@ rust-version = "1.100.0"
 publish = false
 
 [workspace.dependencies]
-apalis = "=1.0.0"
-apalis-postgres = "=1.0.0"
+apalis = "=1.2.0"
+apalis-postgres = "=1.1.0"
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 ferrum-application = { path = "crates/application" }
 ferrum-config = { path = "crates/config" }
